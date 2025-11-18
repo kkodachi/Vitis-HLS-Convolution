@@ -8,7 +8,7 @@ void conv3d_os(
     size_t Kh, size_t Kw, size_t Kd, size_t C_out,
     data_type *output,
     size_t stride_d = 1, size_t stride_h = 1, size_t stride_w = 1,
-    size_t pad_d = 1, size_t pad_h = 1, size_t pad_w = 1
+    size_t pad_d = 0, size_t pad_h = 0, size_t pad_w = 0
 )
 {
 
