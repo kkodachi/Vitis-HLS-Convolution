@@ -8,18 +8,18 @@ void conv3d_ws(
 	size_t stride_d, size_t stride_h, size_t stride_w,
 	size_t pad_d, size_t pad_h, size_t pad_w
 ) {
-	// AXI interfaces
-	#pragma HLS INTERFACE m_axi port=activations depth=250 bundle=gmem0
-	#pragma HLS INTERFACE m_axi port=weights 	depth=250 bundle=gmem1
-	#pragma HLS INTERFACE m_axi port=output_ws   depth=250 bundle=gmem2
+	// SINGLE AXI interface for all memory (reduces I/O ports)
+	#pragma HLS INTERFACE m_axi port=activations depth=250 bundle=gmem
+	#pragma HLS INTERFACE m_axi port=weights depth=250 bundle=gmem
+	#pragma HLS INTERFACE m_axi port=output_ws depth=250 bundle=gmem
 
 	#pragma HLS INTERFACE s_axilite port=activations bundle=control
-	#pragma HLS INTERFACE s_axilite port=weights 	bundle=control
-	#pragma HLS INTERFACE s_axilite port=output_ws   bundle=control
+	#pragma HLS INTERFACE s_axilite port=weights bundle=control
+	#pragma HLS INTERFACE s_axilite port=output_ws bundle=control
 
-	#pragma HLS INTERFACE s_axilite port=H  bundle=control
-	#pragma HLS INTERFACE s_axilite port=W  bundle=control
-	#pragma HLS INTERFACE s_axilite port=D  bundle=control
+	#pragma HLS INTERFACE s_axilite port=H bundle=control
+	#pragma HLS INTERFACE s_axilite port=W bundle=control
+	#pragma HLS INTERFACE s_axilite port=D bundle=control
 	#pragma HLS INTERFACE s_axilite port=IC bundle=control
 
 	#pragma HLS INTERFACE s_axilite port=Kh bundle=control
@@ -42,62 +42,66 @@ void conv3d_ws(
 	const int H_out = (H + 2 * pad_h - Kh) / stride_h + 1;
 	const int W_out = (W + 2 * pad_w - Kw) / stride_w + 1;
 
+	// Buffers sized by MAX defines
 	data_type act_buf[MAX_IC][MAX_D][MAX_H][MAX_W];
+	#pragma HLS ARRAY_PARTITION variable=act_buf cyclic factor=2 dim=1
+	
 	data_type weight_buf[MAX_OC][MAX_IC][MAX_KD][MAX_KH][MAX_KW];
+	#pragma HLS ARRAY_PARTITION variable=weight_buf cyclic factor=2 dim=1
 
 	// Load activations
+	load_act:
 	for (int ic = 0; ic < IC; ic++)
-    	for (int d = 0; d < D; d++)
-        	for (int h = 0; h < H; h++)
-            	for (int w = 0; w < W; w++)
-#pragma HLS PIPELINE II=1
-                	act_buf[ic][d][h][w] = activations[((ic*D + d)*H + h)*W + w];
+		for (int d = 0; d < D; d++)
+			for (int h = 0; h < H; h++)
+				for (int w = 0; w < W; w++)
+					#pragma HLS PIPELINE II=1
+					act_buf[ic][d][h][w] = activations[((ic*D + d)*H + h)*W + w];
 
 	// Load weights
+	load_weights:
 	for (int oc = 0; oc < OC; oc++)
-    	for (int ic = 0; ic < IC; ic++)
-        	for (int kd = 0; kd < Kd; kd++)
-            	for (int kh = 0; kh < Kh; kh++)
-                	for (int kw = 0; kw < Kw; kw++)
-#pragma HLS PIPELINE II=1
-                    	weight_buf[oc][ic][kd][kh][kw] =
-                        	weights[(((oc*IC + ic)*Kd + kd)*Kh + kh)*Kw + kw];
+		for (int ic = 0; ic < IC; ic++)
+			for (int kd = 0; kd < Kd; kd++)
+				for (int kh = 0; kh < Kh; kh++)
+					for (int kw = 0; kw < Kw; kw++)
+						#pragma HLS PIPELINE II=1
+						weight_buf[oc][ic][kd][kh][kw] =
+							weights[(((oc*IC + ic)*Kd + kd)*Kh + kh)*Kw + kw];
 
 	// Convolution
+	conv_outer:
 	for (int oc = 0; oc < OC; oc++) {
-    	for (int od = 0; od < D_out; od++) {
-        	for (int oh = 0; oh < H_out; oh++) {
-            	for (int ow = 0; ow < W_out; ow++) {
+		for (int od = 0; od < D_out; od++) {
+			for (int oh = 0; oh < H_out; oh++) {
+				for (int ow = 0; ow < W_out; ow++) {
 
-                	data_type sum = 0;
+					data_type sum = 0;
 
-                	for (int ic = 0; ic < IC; ic++)
-                    	for (int kd = 0; kd < Kd; kd++)
-                        	for (int kh = 0; kh < Kh; kh++)
-                            	for (int kw = 0; kw < Kw; kw++) {
-#pragma HLS PIPELINE II=1
-                                	int id = od * stride_d + kd - pad_d;
-                                	int ih = oh * stride_h + kh - pad_h;
-                                	int iw = ow * stride_w + kw - pad_w;
+					conv_inner:
+					for (int ic = 0; ic < IC; ic++)
+						for (int kd = 0; kd < Kd; kd++)
+							for (int kh = 0; kh < Kh; kh++)
+								for (int kw = 0; kw < Kw; kw++) {
+									#pragma HLS PIPELINE II=1
+									int id = od * stride_d + kd - pad_d;
+									int ih = oh * stride_h + kh - pad_h;
+									int iw = ow * stride_w + kw - pad_w;
 
-                                	if (id >= 0 && id < D &&
-                                    	ih >= 0 && ih < H &&
-                                    	iw >= 0 && iw < W) {
-                                    	sum += act_buf[ic][id][ih][iw] *
-                                           	weight_buf[oc][ic][kd][kh][kw];
-                                	}
-                            	}
+									if (id >= 0 && id < D &&
+										ih >= 0 && ih < H &&
+										iw >= 0 && iw < W) {
+										sum += act_buf[ic][id][ih][iw] *
+											   weight_buf[oc][ic][kd][kh][kw];
+									}
+								}
 
-                	output_ws[((oc*D_out + od)*H_out + oh)*W_out + ow] = sum;
-            	}
-        	}
-    	}
+					output_ws[((oc*D_out + od)*H_out + oh)*W_out + ow] = sum;
+				}
+			}
+		}
 	}
 }
-
-
-
-
 
 
 

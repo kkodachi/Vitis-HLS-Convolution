@@ -5,6 +5,7 @@
 using namespace std;
 
 int main() {
+    // REDUCED test dimensions to fit MAX sizes
     const size_t H = 5;
     const size_t W = 5;
     const size_t D = 5;
@@ -135,7 +136,6 @@ int main() {
 
     return 0;
 }
-
 
 
 
