@@ -1,4 +1,5 @@
 #include "config.h"
+#include <stddef.h> // added this so synthesis would work
 
 // 64K elements 65536
 //
