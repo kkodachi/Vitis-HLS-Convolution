@@ -16,8 +16,8 @@ void conv3d_ws(
     data_type *weights,
     size_t Kh, size_t Kw, size_t Kd, size_t C_out,
     data_type *output,
-    size_t stride_d = 1, size_t stride_h = 1, size_t stride_w = 1,
-    size_t pad_d = 0, size_t pad_h = 0, size_t pad_w = 0
+    size_t stride_d, size_t stride_h, size_t stride_w,
+    size_t pad_d, size_t pad_h, size_t pad_w
 )
 {
     #pragma HLS INTERFACE m_axi port=activations  offset=slave bundle=gmem0
