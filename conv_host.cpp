@@ -1,3 +1,5 @@
+#include <iostream>
+#include <cstdlib>
 #include "config.h"
 #include "conv3d_kernel.h"
 
@@ -37,11 +39,11 @@ void compare_output(data_type *output, data_type *golden){
         if(output[i] != golden[i]) {
             errors++;
             if(errors < 5) {
-                std::cout << "Mismatch at index " << i << ": golden=" << golden[i] << " kernel=" << output[i] << std::endl;
+                std::cout << "Mismatch at index " << i << ": golden=" << (float)golden[i] << " kernel=" << (float)output[i] << std::endl;
             }
         }
         else if (i < 5){
-        	std::cout << "Match at " << i << ": " << output[i] << std::endl;
+        	std::cout << "Match at " << i << ": " << (float)output[i] << std::endl;
         }
     }
 

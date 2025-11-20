@@ -59,7 +59,8 @@ void conv3d_ws(
     data_type W_BRAM[BUFFER_SIZE];
     #pragma HLS BIND_STORAGE variable=W_BRAM type=ram_1p impl=bram
     data_type output_local[BUFFER_SIZE];
-    #pragma HLS ARRAY_PARTITION variable=output_local complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=output_local cyclic factor=4 dim=1
+    // #pragma HLS ARRAY_PARTITION variable=output_local complete dim=1
 
     // conv operation over each channel using the tiles
 
