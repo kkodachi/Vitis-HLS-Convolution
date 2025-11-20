@@ -20,9 +20,10 @@ void conv3d_ws(
     size_t pad_d, size_t pad_h, size_t pad_w
 )
 {
-    #pragma HLS INTERFACE m_axi port=activations  offset=slave bundle=gmem0
-    #pragma HLS INTERFACE m_axi port=weights      offset=slave bundle=gmem1
-    #pragma HLS INTERFACE m_axi port=output       offset=slave bundle=gmem2
+    #pragma HLS INTERFACE m_axi port=activations  offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=weights      offset=slave bundle=gmem
+    #pragma HLS INTERFACE m_axi port=output       offset=slave bundle=gmem
+
     #pragma HLS INTERFACE s_axilite port=H_in      bundle=control
     #pragma HLS INTERFACE s_axilite port=W_in      bundle=control
     #pragma HLS INTERFACE s_axilite port=D_in      bundle=control

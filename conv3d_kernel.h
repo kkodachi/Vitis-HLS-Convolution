@@ -1,8 +1,8 @@
 #include "config.h"
+#include <stddef.h>
 
-// 64K elements 65536
-//
-#define BUFFER_SIZE 8192
+// 65536, 8192
+#define BUFFER_SIZE 1024
 
 void conv3d_ws(
     data_type *activations,
