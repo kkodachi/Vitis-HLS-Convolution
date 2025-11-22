@@ -81,7 +81,6 @@ void conv3d_ws(
     fixed_point_t local_output[MAX_H][MAX_W];
     #pragma HLS ARRAY_PARTITION variable=local_output cyclic factor=K dim=2
 
-
     int H_OUT = (H + 2*pad - K)/stride + 1;
     int W_OUT = (W + 2*pad - K)/stride + 1;
 

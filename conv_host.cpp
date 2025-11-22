@@ -98,7 +98,10 @@ int main() {
     conv3d_golden(activations, weights, golden, H, W, IC, OC, K, S, P);
 
     // run kernel
-    conv3d_ws(activations, weights, out_kernel, H, W, IC, OC, K, S, P);
+    // conv3d_ws(activations, weights, out_kernel, H, W, IC, OC, K, S, P);
+
+    // run kernel
+    conv3d_os(activations, weights, out_kernel, H, W, IC, OC, K, S, P);
 
     // compare results
     int errors = 0;
