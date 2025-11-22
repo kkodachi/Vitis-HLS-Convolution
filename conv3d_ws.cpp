@@ -19,7 +19,7 @@ void load_weights(
 
 void load_activations(
     fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
-    fixed_point_t local_activations[MAX_H][MAX_W],
+    fixed_point_t local_activations[MAX_H + 2*MAX_K][MAX_W + 2*MAX_K],
     int H, int W, int IC_ind, int pad
 ){
     LOAD_ACTIVATION:
@@ -68,9 +68,12 @@ void conv3d_ws(
     #pragma HLS INTERFACE m_axi port=output      offset=slave depth=262144
 
     fixed_point_t local_weights[MAX_K][MAX_K][MAX_IC];
-    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=3
-    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=2
+    // IC
+    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=16 dim=3
+	#pragma HLS ARRAY_PARTITION variable=local_weights complete dim=1
+	#pragma HLS ARRAY_PARTITION variable=local_weights complete dim=2
+//    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=K dim=1
+//    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=K dim=2
 
     fixed_point_t local_activations[MAX_H + 2*MAX_K][MAX_W + 2*MAX_K];
     #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=K dim=2
