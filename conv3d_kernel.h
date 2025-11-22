@@ -22,4 +22,4 @@ void conv3d_ws(
     int K,      // kernel size
     int stride, // stride
     int pad     // padding
-)
+);

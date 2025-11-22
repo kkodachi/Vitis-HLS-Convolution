@@ -1,12 +1,12 @@
 #include "conv3d_kernel.h"
 
 // load weights for output channel into BRAM
-#pragma HLS INLINE
 void load_weights_oc(
     fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
     fixed_point_t local_w[MAX_K][MAX_K][MAX_IC],
     int K, int IC, int oc
 ){
+    #pragma HLS INLINE
     LOAD_KH: for(int kh = 0; kh < MAX_K; kh++){
         LOAD_KW: for(int kw = 0; kw < MAX_K; kw++){
             LOAD_IC: for(int ic = 0; ic < MAX_IC; ic++){
@@ -21,7 +21,7 @@ void load_weights_oc(
 
 
 // weight stationary convolution kernel
-void conv2d_ws(
+void conv3d_ws(
     fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
     fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
     fixed_point_t output[MAX_H][MAX_W][MAX_OC],
@@ -38,9 +38,12 @@ void conv2d_ws(
     // #pragma HLS INTERFACE m_axi     port=activations offset=slave depth=32768
     // #pragma HLS INTERFACE m_axi     port=weights     offset=slave depth=65536
     // #pragma HLS INTERFACE m_axi     port=output      offset=slave depth=32768
-    #pragma HLS INTERFACE m_axi port=activations offset=slave depth=MAX_H*MAX_W*MAX_IC
-    #pragma HLS INTERFACE m_axi port=weights     offset=slave depth=MAX_K*MAX_K*MAX_IC*MAX_OC
-    #pragma HLS INTERFACE m_axi port=output      offset=slave depth=MAX_H*MAX_W*MAX_OC
+	// MAX_H*MAX_W*MAX_IC
+    #pragma HLS INTERFACE m_axi port=activations offset=slave depth=262144
+	// MAX_K*MAX_K*MAX_IC*MAX_OC
+    #pragma HLS INTERFACE m_axi port=weights     offset=slave depth=589824
+	// MAX_H*MAX_W*MAX_OC
+    #pragma HLS INTERFACE m_axi port=output      offset=slave depth=262144
 
 
     #pragma HLS INTERFACE s_axilite port=H
