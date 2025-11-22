@@ -1,26 +1,42 @@
+#include "config.h"
 #include "conv3d_kernel.h"
 
-// load weights for output channel into BRAM
-void load_weights_oc(
+void load_weights(
     fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
-    fixed_point_t local_w[MAX_K][MAX_K][MAX_IC],
-    int K, int IC, int oc
+    fixed_point_t local_weights[MAX_K][MAX_K][MAX_IC],
+    int IC, int K, int OC
 ){
-    #pragma HLS INLINE
-    LOAD_KH: for(int kh = 0; kh < MAX_K; kh++){
-        LOAD_KW: for(int kw = 0; kw < MAX_K; kw++){
-            LOAD_IC: for(int ic = 0; ic < MAX_IC; ic++){
+    LOAD_WEIGHTS:
+    for (int kx=0;kx<K;kx++){
+        for (int ky=0;ky<K;ky++){
+            for (int ic=0;ic<IC;ic++){
                 #pragma HLS PIPELINE II=1
-                if(kh < K && kw < K && ic < IC){
-                    local_w[kh][kw][ic] = weights[kh][kw][ic][oc];
-                }
+                local_weights[kx][ky][ic] = weights[kx][ky][ic][OC];
+            }
+        }
+    }
+}
+
+void load_activations(
+    fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
+    fixed_point_t local_activations[MAX_H][MAX_W],
+    int H, int W, int IC_ind, int pad
+){
+    LOAD_ACTIVATION:
+    for (int h = 0; h < H + 2*pad; h++) {
+        for (int w = 0; w < W + 2*pad; w++) {
+            #pragma HLS PIPELINE II=1
+            if (h < pad || h >= H + pad || w < pad || w >= W + pad) {
+                local_activations[h][w] = 0; // zero padding
+            } else {
+                local_activations[h][w] = activations[h - pad][w - pad][IC_ind];
             }
         }
     }
 }
 
 
-// weight stationary convolution kernel
+
 void conv3d_ws(
     fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
     fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
@@ -33,88 +49,86 @@ void conv3d_ws(
     int K,      // kernel size
     int stride, // stride
     int pad     // padding
-){
-    // AXI interfaces
-    // #pragma HLS INTERFACE m_axi     port=activations offset=slave depth=32768
-    // #pragma HLS INTERFACE m_axi     port=weights     offset=slave depth=65536
-    // #pragma HLS INTERFACE m_axi     port=output      offset=slave depth=32768
-	// MAX_H*MAX_W*MAX_IC
+)
+{
+    #pragma HLS INTERFACE mode=s_axilite port=H
+    #pragma HLS INTERFACE mode=s_axilite port=W
+    #pragma HLS INTERFACE mode=s_axilite port=IC
+    #pragma HLS INTERFACE mode=s_axilite port=OC
+    #pragma HLS INTERFACE mode=s_axilite port=K
+    #pragma HLS INTERFACE mode=s_axilite port=stride
+    #pragma HLS INTERFACE mode=s_axilite port=pad
+    #pragma HLS INTERFACE mode=s_axilite port=return
+
+    // MAX_H*MAX_W*MAX_IC
     #pragma HLS INTERFACE m_axi port=activations offset=slave depth=262144
 	// MAX_K*MAX_K*MAX_IC*MAX_OC
     #pragma HLS INTERFACE m_axi port=weights     offset=slave depth=589824
 	// MAX_H*MAX_W*MAX_OC
     #pragma HLS INTERFACE m_axi port=output      offset=slave depth=262144
 
+    fixed_point_t local_weights[MAX_K][MAX_K][MAX_IC];
+    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=3
+    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=2
 
-    #pragma HLS INTERFACE s_axilite port=H
-    #pragma HLS INTERFACE s_axilite port=W
-    #pragma HLS INTERFACE s_axilite port=IC
-    #pragma HLS INTERFACE s_axilite port=OC
-    #pragma HLS INTERFACE s_axilite port=K
-    #pragma HLS INTERFACE s_axilite port=stride
-    #pragma HLS INTERFACE s_axilite port=pad
-    #pragma HLS INTERFACE s_axilite port=return
+    fixed_point_t local_activations[MAX_H + 2*MAX_K][MAX_W + 2*MAX_K];
+    #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=K dim=2
 
-    // output dimensions
-    const int H_out = (H + 2*pad - K) / stride + 1;
-    const int W_out = (W + 2*pad - K) / stride + 1;
+    fixed_point_t local_output[MAX_H][MAX_W];
+    #pragma HLS ARRAY_PARTITION variable=local_output cyclic factor=K dim=2
 
-    // local weight buffer
-    fixed_point_t local_w[MAX_K][MAX_K][MAX_IC];
-    #pragma HLS ARRAY_PARTITION variable=local_w dim=1 complete
-    #pragma HLS ARRAY_PARTITION variable=local_w dim=2 complete
-    #pragma HLS ARRAY_PARTITION variable=local_w dim=3 complete
 
-    
+    int H_OUT = (H + 2*pad - K)/stride + 1;
+    int W_OUT = (W + 2*pad - K)/stride + 1;
+
     OC_LOOP:
-    for(int oc = 0; oc < OC; oc++){
-        
-        // load weights into BRAM
-        load_weights_oc(weights, local_w, K, IC, oc);
+    for (int oc=0;oc<OC;oc++){
+        load_weights(weights,local_weights,IC,K,oc);
 
-        H_OUT:
-        for(int ho = 0; ho < H_out; ho++){
-            W_OUT:
-            for(int wo = 0; wo < W_out; wo++){
+        INIT_ZERO_LOOP:
+        for (int h = 0; h < H_OUT; h++) {
+            for (int w = 0; w < W_OUT; w++) {
                 #pragma HLS PIPELINE II=1
+                local_output[h][w] = 0;
+            }
+        }
 
-                accum_t sum = 0;
+        IC_LOOP:
+        for (int ic=0;ic<IC;ic++){
+            load_activations(activations,local_activations,H,W,ic,pad);
+            H_OUT_LOOP:
+            for (int h=0;h<H_OUT;h++){
+                W_OUT_LOOP:
+                for (int w=0;w<W_OUT;w++){
+                    #pragma HLS PIPELINE II=1
 
-                // input start
-                int h_base = ho * stride - pad;
-                int w_base = wo * stride - pad;
+                    accum_t sum = 0;
 
-                //---------------------------------------------------
-                // Convolution window (UNROLLED)
-                //---------------------------------------------------
-                KH:
-                for(int kh = 0; kh < MAX_K; kh++){
-                    #pragma HLS UNROLL
-
-                    KW:
-                    for(int kw = 0; kw < MAX_K; kw++){
+                    KH_LOOP:
+                    for (int kh = 0; kh < K; kh++) {
                         #pragma HLS UNROLL
-
-                        IC_LOOP:
-                        for(int ic = 0; ic < MAX_IC; ic++){
+                        KW_LOOP:
+                        for (int kw = 0; kw < K; kw++) {
                             #pragma HLS UNROLL
+                            int h_in = h * stride + kh;
+                            int w_in = w * stride + kw;
 
-                            if(kh < K && kw < K && ic < IC){
-                                int h_in = h_base + kh;
-                                int w_in = w_base + kw;
-
-                                // padding check
-                                if(h_in >= 0 && h_in < H &&
-                                   w_in >= 0 && w_in < W){
-                                    sum += activations[h_in][w_in][ic] *
-                                           local_w[kh][kw][ic];
-                                }
-                            }
+                            sum += local_activations[h_in][w_in] * 
+                                   local_weights[kh][kw][ic];
                         }
                     }
-                }
 
-                output[ho][wo][oc] = (fixed_point_t)sum;
+                    local_output[h][w] += sum;
+                }
+            }
+        }
+
+        WB_LOOP:
+        for (int h = 0; h < H_OUT; h++) {
+            for (int w = 0; w < W_OUT; w++) {
+                #pragma HLS PIPELINE II=1
+                output[h][w][oc] = local_output[h][w];
             }
         }
     }
