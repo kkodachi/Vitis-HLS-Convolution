@@ -1,159 +1,133 @@
 #include <iostream>
+#include <cmath>
 #include <cstdlib>
-#include "config.h"
 #include "conv3d_kernel.h"
 
-// CIFAR10 Params
-#define IC 3       // input channels
-#define OC 8       // output channels
-#define D 1        // input depth
-#define H 32        // input height
-#define W 32        // input width
-#define Kd 1       // kernel depth
-#define Kh 3       // kernel height
-#define Kw 3       // kernel width
+// golden result for comparison
+void conv3d_golden(
+    fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
+    fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
+    fixed_point_t golden[MAX_H][MAX_W][MAX_OC],
+    int H, int W, int IC, int OC, int K,
+    int stride,
+    int pad
+){
+    // Compute output shape
+    int H_out = (H + 2*pad - K) / stride + 1;
+    int W_out = (W + 2*pad - K) / stride + 1;
 
-#define stride_d 1
-#define stride_h 1
-#define stride_w 1
-
-#define pad_d 0
-#define pad_h 0
-#define pad_w 0
-
-
-// derived output dimensions
-#define D_out ((D + 2*pad_d - Kd)/stride_d + 1)
-#define H_out ((H + 2*pad_h - Kh)/stride_h + 1)
-#define W_out ((W + 2*pad_w - Kw)/stride_w + 1)
-
-// flattening helpers
-inline int idx4(int d, int h, int w, int c, int D_, int H_, int W_, int C_) {
-    return ((c * D_ + d) * H_ + h) * W_ + w;
-}
-
-// compare output helper
-void compare_output(data_type *output, data_type *golden){
-    int errors = 0;
-    for(int i = 0; i < OC * D_out * H_out * W_out; i++) {
-        if(output[i] != golden[i]) {
-            errors++;
-            if(errors < 5) {
-                std::cout << "Mismatch at index " << i << ": golden=" << (float)golden[i] << " kernel=" << (float)output[i] << std::endl;
+    // Initialize output
+    for (int oc = 0; oc < OC; oc++) {
+        for (int h = 0; h < H_out; h++) {
+            for (int w = 0; w < W_out; w++) {
+                golden[h][w][oc] = 0;
             }
-        }
-        else if (i < 5){
-        	std::cout << "Match at " << i << ": " << (float)output[i] << std::endl;
         }
     }
 
-    if(errors == 0) std::cout << "Kernel matches golden" << std::endl;
-    else std::cout << errors << " errors found" << std::endl;
-}
-
-// golden 3D convolution
-void conv_golden(
-    data_type *A_ptr, data_type *W_ptr, data_type *Y_ptr,
-    int s_d, int s_h, int s_w,
-    int p_d, int p_h, int p_w
-) {
-
-
+    // Compute convolution
     for (int oc = 0; oc < OC; oc++) {
-        for (int od = 0; od < D_out; od++) {
-            for (int oh = 0; oh < H_out; oh++) {
-                for (int ow = 0; ow < W_out; ow++) {
+        for (int oh = 0; oh < H_out; oh++) {
+            for (int ow = 0; ow < W_out; ow++) {
 
-                    data_type sum = 0;
+                accum_t sum = 0;
 
-                    for (int ic = 0; ic < IC; ic++) {
-                        for (int kd = 0; kd < Kd; kd++) {
-                            int in_d = od*s_d - p_d + kd;
-                            if (in_d < 0 || in_d >= D) continue;
+                int h_in_origin = oh * stride - pad;
+                int w_in_origin = ow * stride - pad;
 
-                            for (int kh = 0; kh < Kh; kh++) {
-                                int in_h = oh*s_h - p_h + kh;
-                                if (in_h < 0 || in_h >= H) continue;
+                for (int kh = 0; kh < K; kh++) {
+                    for (int kw = 0; kw < K; kw++) {
+                        for (int ic = 0; ic < IC; ic++) {
 
-                                for (int kw = 0; kw < Kw; kw++) {
-                                    int in_w = ow*s_w - p_w + kw;
-                                    if (in_w < 0 || in_w >= W) continue;
+                            int h_in = h_in_origin + kh;
+                            int w_in = w_in_origin + kw;
 
-                                    size_t a_idx =
-                                        ((ic * D + in_d) * H + in_h) * W + in_w;
-
-                                    size_t w_idx =
-                                        (((oc * IC + ic) * Kd + kd) * Kh + kh) * Kw + kw;
-
-                                    sum += A_ptr[a_idx] * W_ptr[w_idx];
-                                }
+                            // Check if inside padded input
+                            if (h_in >= 0 && h_in < H &&
+                                w_in >= 0 && w_in < W)
+                            {
+                                sum += activations[h_in][w_in][ic] *
+                                       weights[kh][kw][ic][oc];
                             }
                         }
                     }
+                }
 
-                    size_t out_idx =
-                        ((oc * D_out + od) * H_out + oh) * W_out + ow;
+                golden[oh][ow][oc] = (fixed_point_t)sum;
+            }
+        }
+    }
+}
 
-                    Y_ptr[out_idx] = sum;
+
+int main() {
+    // test parameters
+    int H = 32;
+    int W = 32;
+    int IC = 3;
+    int OC = 96;
+    int K = 3;
+    int S = 2;
+    int P = 1;
+    
+    static fixed_point_t activations[MAX_H][MAX_W][MAX_IC];
+    static fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC];
+    static fixed_point_t out_kernel[MAX_H][MAX_W][MAX_OC];
+    static fixed_point_t golden[MAX_H][MAX_W][MAX_OC];
+
+    // randomize inputs
+    for (int h = 0; h < H; h++) {
+        for (int w = 0; w < W; w++) {
+            for (int c = 0; c < IC; c++) {
+                activations[h][w][c] = (rand() % 256) - 128;
+            }
+        }
+    }
+
+    for (int kh = 0; kh < K; kh++) {
+        for (int kw = 0; kw < K; kw++) {
+            for (int ic = 0; ic < IC; ic++) {
+                for (int oc = 0; oc < OC; oc++) {
+                    weights[kh][kw][ic][oc] = (rand() % 64) - 32;
                 }
             }
         }
     }
-}
 
-int main() {
-    std::srand(1);
+    // compute golden result
+    conv3d_golden(activations, weights, golden, H, W, IC, OC, K, S, P);
 
-    data_type *activations = new data_type[IC*D*H*W];
-    data_type *weights = new data_type[OC*IC*Kd*Kh*Kw];
-    data_type *output_ws = new data_type[OC*D_out*H_out*W_out];
-    data_type *output_os = new data_type[OC*D_out*H_out*W_out];
-    data_type *golden = new data_type[OC*D_out*H_out*W_out];
+    // run kernel
+    conv3d_ws(activations, weights, out_kernel, H, W, IC, OC, K, S, P);
 
-    // randomize activations and weights
-    for(int i = 0; i < IC*D*H*W; i++) {
-        int r = std::rand() % 256 - 128;
-        activations[i] = data_type(r/16.0);
+    // compare results
+    int errors = 0;
+    int H_out = (H + 2*P - K)/S + 1;
+    int W_out = (W + 2*P - K)/S + 1;
+
+
+    for (int oc = 0; oc < OC; oc++) {
+        for (int h = 0; h < H_out; h++) {
+            for (int w = 0; w < W_out; w++) {
+
+                if (out_kernel[h][w][oc] != golden[h][w][oc]) {
+                    errors++;
+                    std::cout << "Mismatch @ (h=" << h
+                              << ",w=" << w << ",oc=" << oc << "): "
+                              << "Kernel=" << out_kernel[h][w][oc]
+                              << "  Ref=" << golden[h][w][oc]
+                              << std::endl;
+                }
+            }
+        }
     }
-    for(int i = 0; i < OC*IC*Kd*Kh*Kw; i++) {
-        int r = std::rand() % 256 - 128;
-        weights[i] = data_type(r/16.0);
+
+    // pass or fail
+    if (errors == 0) {
+        std::cout << "Kernel matches golden reference." << std::endl;
+    } else {
+        std::cout << "Kernel doesn't match golden reference: " << errors << " mismatches found." << std::endl;
     }
-
-    // initialize outputs
-    for(int i = 0; i < OC*D_out*H_out*W_out; i++) {
-        output_ws[i] = 0;
-        output_os[i] = 0;
-        golden[i] = 0;
-    }
-
-    // compute golden
-    conv_golden(
-        activations,
-        weights,
-        golden,
-        stride_d, stride_h, stride_w,
-        pad_d, pad_h, pad_w
-    );
-
-
-    // call kernels
-    conv3d_ws(activations, H, W, D, IC, weights, Kh, Kw, Kd, OC, output_ws);
-    // conv3d_os(activations, H, W, D, IC, weights, Kh, Kw, Kd, OC, output_os);
-
-
-    // compare outputs
-    std::cout << "Weight stationary kernel:" << std::endl;
-    compare_output(output_ws, golden);
-    // std::cout << "Output stationary kernel:" << std::endl;
-    // compare_output(output_os, golden);
-
-    // Cleanup
-    delete[] activations;
-    delete[] weights;
-    delete[] output_ws;
-    delete[] output_os;
-    delete[] golden;
 
     return 0;
 }

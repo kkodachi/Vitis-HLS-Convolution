@@ -1,6 +1,9 @@
- #include "ap_fixed.h"
+#include "ap_fixed.h"
 // #include <stdint.h>
 
 
-typedef ap_fixed<16,8> data_type;
-// typedef float data_type;
+// fixed-point type: 4 integer bits, 4 fractional bits
+typedef ap_fixed<8, 4> fixed_point_t;
+
+// Accumulator type: 12 integer bits, 4 fractional bits
+typedef ap_fixed<16, 12> accum_t;

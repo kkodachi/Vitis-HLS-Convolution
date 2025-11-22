@@ -1,15 +1,16 @@
 #include "config.h"
 #include "conv3d_kernel.h"
 
-void conv3d_os(
-    data_type *activations,
-    size_t H_in, size_t W_in, size_t D_in,size_t C_in,
-    data_type *weights,
-    size_t Kh, size_t Kw, size_t Kd, size_t C_out,
-    data_type *output,
-    size_t stride_d, size_t stride_h, size_t stride_w,
-    size_t pad_d, size_t pad_h, size_t pad_w
-)
-{
+void conv2d_ws(
+    fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
+    fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
+    fixed_point_t output[MAX_H][MAX_W][MAX_OC],
 
-}
+    int H,      // input height
+    int W,      // input width
+    int IC,     // input channels
+    int OC,     // output channels
+    int K,      // kernel size
+    int stride, // stride
+    int pad     // padding
+);
