@@ -1,25 +1,8 @@
-#ifndef CONFIG_H
-#define CONFIG_H
-
 #include "ap_fixed.h"
+// #include <stdint.h>
 
-// Datatype used throughout
-typedef ap_fixed<16,8> data_type;
+// fixed-point type: 4 integer bits, 4 fractional bits
+typedef ap_fixed<8, 4> fixed_point_t;
 
-// ULTRA-REDUCED dimensions for KV260
-#define MAX_H   6   // Reduced from 8
-#define MAX_W   6   // Reduced from 8
-#define MAX_D   6   // Reduced from 8
-
-#define MAX_IC  2   // Reduced from 4
-#define MAX_OC  2   // Reduced from 4
-
-// Kernel size limits
-#define MAX_KH  3
-#define MAX_KW  3
-#define MAX_KD  3
-
-#endif
-
-
-
+// Accumulator type: 12 integer bits, 4 fractional bits
+typedef ap_fixed<16, 12> accum_t;

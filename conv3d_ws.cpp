@@ -1,106 +1,138 @@
 #include "conv3d_kernel.h"
-#include "config.h"
+
+void load_weights(
+    fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
+    fixed_point_t local_weights[MAX_K][MAX_K][MAX_IC],
+    int IC, int K, int OC
+){
+    LOAD_WEIGHTS:
+    for (int kx=0;kx<K;kx++){
+        for (int ky=0;ky<K;ky++){
+            for (int ic=0;ic<IC;ic++){
+                #pragma HLS PIPELINE II=1
+                local_weights[kx][ky][ic] = weights[kx][ky][ic][OC];
+            }
+        }
+    }
+}
+
+void load_activations(
+    fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
+    fixed_point_t local_activations[MAX_H + 2*MAX_K][MAX_W + 2*MAX_K],
+    int H, int W, int IC_ind, int pad
+){
+    LOAD_ACTIVATION:
+    for (int h = 0; h < H + 2*pad; h++) {
+        for (int w = 0; w < W + 2*pad; w++) {
+            #pragma HLS PIPELINE II=1
+            if (h < pad || h >= H + pad || w < pad || w >= W + pad) {
+                local_activations[h][w] = 0; // zero padding
+            } else {
+                local_activations[h][w] = activations[h - pad][w - pad][IC_ind];
+            }
+        }
+    }
+}
+
+
 
 void conv3d_ws(
-	data_type *activations, size_t H, size_t W, size_t D, size_t IC,
-	data_type *weights, size_t Kh, size_t Kw, size_t Kd, size_t OC,
-	data_type *output_ws,
-	size_t stride_d, size_t stride_h, size_t stride_w,
-	size_t pad_d, size_t pad_h, size_t pad_w
-) {
-	// Minimal AXI interface - single port, minimal burst
-	#pragma HLS INTERFACE m_axi port=activations depth=250 bundle=gmem latency=64
-	#pragma HLS INTERFACE m_axi port=weights depth=250 bundle=gmem latency=64
-	#pragma HLS INTERFACE m_axi port=output_ws depth=250 bundle=gmem latency=64
+    fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
+    fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
+    fixed_point_t output[MAX_H][MAX_W][MAX_OC],
 
-	#pragma HLS INTERFACE s_axilite port=activations bundle=control
-	#pragma HLS INTERFACE s_axilite port=weights bundle=control
-	#pragma HLS INTERFACE s_axilite port=output_ws bundle=control
+    int H,      // input height
+    int W,      // input width
+    int IC,     // input channels
+    int OC,     // output channels
+    int K,      // kernel size
+    int stride, // stride
+    int pad     // padding
+)
+{
+    #pragma HLS INTERFACE mode=s_axilite port=H
+    #pragma HLS INTERFACE mode=s_axilite port=W
+    #pragma HLS INTERFACE mode=s_axilite port=IC
+    #pragma HLS INTERFACE mode=s_axilite port=OC
+    #pragma HLS INTERFACE mode=s_axilite port=K
+    #pragma HLS INTERFACE mode=s_axilite port=stride
+    #pragma HLS INTERFACE mode=s_axilite port=pad
+    #pragma HLS INTERFACE mode=s_axilite port=return
 
-	#pragma HLS INTERFACE s_axilite port=H bundle=control
-	#pragma HLS INTERFACE s_axilite port=W bundle=control
-	#pragma HLS INTERFACE s_axilite port=D bundle=control
-	#pragma HLS INTERFACE s_axilite port=IC bundle=control
+    // MAX_H*MAX_W*MAX_IC
+    #pragma HLS INTERFACE m_axi port=activations offset=slave depth=262144
+	// MAX_K*MAX_K*MAX_IC*MAX_OC
+    #pragma HLS INTERFACE m_axi port=weights     offset=slave depth=589824
+	// MAX_H*MAX_W*MAX_OC
+    #pragma HLS INTERFACE m_axi port=output      offset=slave depth=262144
 
-	#pragma HLS INTERFACE s_axilite port=Kh bundle=control
-	#pragma HLS INTERFACE s_axilite port=Kw bundle=control
-	#pragma HLS INTERFACE s_axilite port=Kd bundle=control
-	#pragma HLS INTERFACE s_axilite port=OC bundle=control
+    fixed_point_t local_weights[MAX_K][MAX_K][MAX_IC];
+    // IC
+    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=16 dim=3
+	#pragma HLS ARRAY_PARTITION variable=local_weights complete dim=1
+	#pragma HLS ARRAY_PARTITION variable=local_weights complete dim=2
+//    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=K dim=1
+//    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=K dim=2
 
-	#pragma HLS INTERFACE s_axilite port=stride_d bundle=control
-	#pragma HLS INTERFACE s_axilite port=stride_h bundle=control
-	#pragma HLS INTERFACE s_axilite port=stride_w bundle=control
+    fixed_point_t local_activations[MAX_H + 2*MAX_K][MAX_W + 2*MAX_K];
+    #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=K dim=2
 
-	#pragma HLS INTERFACE s_axilite port=pad_d bundle=control
-	#pragma HLS INTERFACE s_axilite port=pad_h bundle=control
-	#pragma HLS INTERFACE s_axilite port=pad_w bundle=control
+    fixed_point_t local_output[MAX_H][MAX_W];
+    #pragma HLS ARRAY_PARTITION variable=local_output cyclic factor=K dim=2
 
-	#pragma HLS INTERFACE s_axilite port=return bundle=control
+    int H_OUT = (H + 2*pad - K)/stride + 1;
+    int W_OUT = (W + 2*pad - K)/stride + 1;
 
-	// Compute output dimensions
-	const int D_out = (D + 2 * pad_d - Kd) / stride_d + 1;
-	const int H_out = (H + 2 * pad_h - Kh) / stride_h + 1;
-	const int W_out = (W + 2 * pad_w - Kw) / stride_w + 1;
+    OC_LOOP:
+    for (int oc=0;oc<OC;oc++){
+        load_weights(weights,local_weights,IC,K,oc);
 
-	// Simple buffers - NO partitioning
-	data_type act_buf[MAX_IC][MAX_D][MAX_H][MAX_W];
-	data_type weight_buf[MAX_OC][MAX_IC][MAX_KD][MAX_KH][MAX_KW];
+        INIT_ZERO_LOOP:
+        for (int h = 0; h < H_OUT; h++) {
+            for (int w = 0; w < W_OUT; w++) {
+                #pragma HLS PIPELINE II=1
+                local_output[h][w] = 0;
+            }
+        }
 
-	// Load activations - simple loop
-	for (int ic = 0; ic < IC; ic++) {
-		for (int d = 0; d < D; d++) {
-			for (int h = 0; h < H; h++) {
-				for (int w = 0; w < W; w++) {
-					#pragma HLS PIPELINE II=1
-					act_buf[ic][d][h][w] = activations[((ic*D + d)*H + h)*W + w];
-				}
-			}
-		}
-	}
+        IC_LOOP:
+        for (int ic=0;ic<IC;ic++){
+            load_activations(activations,local_activations,H,W,ic,pad);
+            H_OUT_LOOP:
+            for (int h=0;h<H_OUT;h++){
+                W_OUT_LOOP:
+                for (int w=0;w<W_OUT;w++){
+                    #pragma HLS PIPELINE II=1
 
-	// Load weights - simple loop
-	for (int oc = 0; oc < OC; oc++) {
-		for (int ic = 0; ic < IC; ic++) {
-			for (int kd = 0; kd < Kd; kd++) {
-				for (int kh = 0; kh < Kh; kh++) {
-					for (int kw = 0; kw < Kw; kw++) {
-						#pragma HLS PIPELINE II=1
-						weight_buf[oc][ic][kd][kh][kw] = weights[(((oc*IC + ic)*Kd + kd)*Kh + kh)*Kw + kw];
-					}
-				}
-			}
-		}
-	}
+                    accum_t sum = 0;
 
-	// Convolution - simple nested loops
-	for (int oc = 0; oc < OC; oc++) {
-		for (int od = 0; od < D_out; od++) {
-			for (int oh = 0; oh < H_out; oh++) {
-				for (int ow = 0; ow < W_out; ow++) {
-					data_type sum = 0;
-					
-					for (int ic = 0; ic < IC; ic++) {
-						for (int kd = 0; kd < Kd; kd++) {
-							for (int kh = 0; kh < Kh; kh++) {
-								for (int kw = 0; kw < Kw; kw++) {
-									#pragma HLS PIPELINE II=1
-									int id = od * stride_d + kd - pad_d;
-									int ih = oh * stride_h + kh - pad_h;
-									int iw = ow * stride_w + kw - pad_w;
+                    KH_LOOP:
+                    for (int kh = 0; kh < K; kh++) {
+                        #pragma HLS UNROLL
+                        KW_LOOP:
+                        for (int kw = 0; kw < K; kw++) {
+                            #pragma HLS UNROLL
+                            int h_in = h * stride + kh;
+                            int w_in = w * stride + kw;
 
-									if (id >= 0 && id < D && ih >= 0 && ih < H && iw >= 0 && iw < W) {
-										sum += act_buf[ic][id][ih][iw] * weight_buf[oc][ic][kd][kh][kw];
-									}
-								}
-							}
-						}
-					}
-					
-					output_ws[((oc*D_out + od)*H_out + oh)*W_out + ow] = sum;
-				}
-			}
-		}
-	}
+                            sum += local_activations[h_in][w_in] * 
+                                   local_weights[kh][kw][ic];
+                        }
+                    }
+
+                    local_output[h][w] += (fixed_point_t)sum;
+                }
+            }
+        }
+
+        WB_LOOP:
+        for (int h = 0; h < H_OUT; h++) {
+            for (int w = 0; w < W_OUT; w++) {
+                #pragma HLS PIPELINE II=1
+                output[h][w][oc] = local_output[h][w];
+            }
+        }
+    }
 }
 
 

@@ -1,26 +1,39 @@
 #include "config.h"
-#include <stddef.h> // added this so synthesis would work
+// #include <stddef.h>
 
-// 64K elements 65536
-//
-#define BUFFER_SIZE 8192
+
+#define MAX_H   32      // largest CIFAR-10 input height
+#define MAX_W   32      // largest CIFAR-10 input width
+
+#define MAX_IC  512     // max input channels
+#define MAX_OC  512     // max output channels
+
+#define MAX_K   3       // largest kernel in squeezenet
 
 void conv3d_ws(
-    data_type *activations,
-    size_t H_in, size_t W_in, size_t D_in,size_t C_in,
-    data_type *weights,
-    size_t Kh, size_t Kw, size_t Kd, size_t C_out,
-    data_type *output,
-    size_t stride_d = 1, size_t stride_h = 1, size_t stride_w = 1,
-    size_t pad_d = 0, size_t pad_h = 0, size_t pad_w = 0
+    fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
+    fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
+    fixed_point_t output[MAX_H][MAX_W][MAX_OC],
+
+    int H,      // input height
+    int W,      // input width
+    int IC,     // input channels
+    int OC,     // output channels
+    int K,      // kernel size
+    int stride, // stride
+    int pad     // padding
 );
 
 void conv3d_os(
-    data_type *activations,
-    size_t H_in, size_t W_in, size_t D_in,size_t C_in,
-    data_type *weights,
-    size_t Kh, size_t Kw, size_t Kd, size_t C_out,
-    data_type *output,
-    size_t stride_d = 1, size_t stride_h = 1, size_t stride_w = 1,
-    size_t pad_d = 0, size_t pad_h = 0, size_t pad_w = 0
+    fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
+    fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
+    fixed_point_t output[MAX_H][MAX_W][MAX_OC],
+
+    int H,      // input height
+    int W,      // input width
+    int IC,     // input channels
+    int OC,     // output channels
+    int K,      // kernel size
+    int stride, // stride
+    int pad     // padding
 );
