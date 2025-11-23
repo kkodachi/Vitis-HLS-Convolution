@@ -1,7 +1,8 @@
 #include <iostream>
-#include <cmath>
+// #include <cmath>
 #include <cstdlib>
 #include "conv3d_kernel.h"
+// using namespace std;
 
 // golden result for comparison
 void conv3d_golden(
@@ -57,7 +58,6 @@ void conv3d_golden(
             }
         }
     }
-}
 
 
 int main() {
@@ -141,3 +141,6 @@ int main() {
 
     return 0;
 }
+
+
+

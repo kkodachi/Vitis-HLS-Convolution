@@ -1,4 +1,3 @@
-#include "config.h"
 #include "conv3d_kernel.h"
 
 void load_weights(
@@ -135,3 +134,6 @@ void conv3d_ws(
         }
     }
 }
+
+
+
