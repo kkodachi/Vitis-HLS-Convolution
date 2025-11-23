@@ -58,6 +58,45 @@ void conv3d_golden(
             }
         }
     }
+}
+
+void compare_results(
+		fixed_point_t out_kernel[MAX_H][MAX_W][MAX_OC],
+		fixed_point_t golden[MAX_H][MAX_W][MAX_OC],
+		int OC, int H_OUT, int W_OUT
+)
+{
+	int errors = 0;
+	int count = 0;
+
+
+	for (int oc = 0; oc < OC; oc++) {
+	    for (int h = 0; h < H_OUT; h++) {
+	        for (int w = 0; w < W_OUT; w++) {
+	        	if (count < 5){
+	            	count++;
+	            	std::cout << "Match: " << out_kernel[h][w][oc] << std::endl;
+	            }
+
+	            if (out_kernel[h][w][oc] != golden[h][w][oc]) {
+	                errors++;
+	                std::cout << "Mismatch @ (h=" << h
+	                          << ",w=" << w << ",oc=" << oc << "): "
+	                          << "Kernel=" << out_kernel[h][w][oc]
+	                          << "  Ref=" << golden[h][w][oc]
+	                          << std::endl;
+	            }
+	        }
+	    }
+	}
+
+	// pass or fail
+	if (errors == 0) {
+	    std::cout << "Matches golden reference." << std::endl;
+	} else {
+	    std::cout << "Doesn't match golden reference: " << errors << " mismatches found." << std::endl;
+	}
+}
 
 
 int main() {
@@ -96,48 +135,20 @@ int main() {
         }
     }
 
+    int H_OUT = (H + 2*P - K)/S + 1;
+    int W_OUT = (W + 2*P - K)/S + 1;
+
     // compute golden result
     conv3d_golden(activations, weights, golden, H, W, IC, OC, K, S, P);
 
     // run kernel
-    // conv3d_ws(activations, weights, out_kernel, H, W, IC, OC, K, S, P);
+    conv3d_ws(activations, weights, out_kernel, H, W, IC, OC, K, S, P);
+    // compare results
+    compare_results(out_kernel,golden,OC,H_OUT,W_OUT);
 
     // run kernel
     conv3d_os(activations, weights, out_kernel, H, W, IC, OC, K, S, P);
-
-    // compare results
-    int errors = 0;
-    int H_out = (H + 2*P - K)/S + 1;
-    int W_out = (W + 2*P - K)/S + 1;
-    int count = 0;
-
-
-    for (int oc = 0; oc < OC; oc++) {
-        for (int h = 0; h < H_out; h++) {
-            for (int w = 0; w < W_out; w++) {
-            	if (count < 5){
-            		count++;
-            		std::cout << "Match: " << out_kernel[h][w][oc] << std::endl;
-            	}
-
-                if (out_kernel[h][w][oc] != golden[h][w][oc]) {
-                    errors++;
-                    std::cout << "Mismatch @ (h=" << h
-                              << ",w=" << w << ",oc=" << oc << "): "
-                              << "Kernel=" << out_kernel[h][w][oc]
-                              << "  Ref=" << golden[h][w][oc]
-                              << std::endl;
-                }
-            }
-        }
-    }
-
-    // pass or fail
-    if (errors == 0) {
-        std::cout << "Kernel matches golden reference." << std::endl;
-    } else {
-        std::cout << "Kernel doesn't match golden reference: " << errors << " mismatches found." << std::endl;
-    }
+    compare_results(out_kernel,golden,OC,H_OUT,W_OUT);
 
     return 0;
 }
