@@ -111,7 +111,8 @@ int main() {
     
     static fixed_point_t activations[MAX_H][MAX_W][MAX_IC];
     static fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC];
-    static fixed_point_t out_kernel[MAX_H][MAX_W][MAX_OC];
+    static fixed_point_t out_ws[MAX_H][MAX_W][MAX_OC];
+    static fixed_point_t out_os[MAX_H][MAX_W][MAX_OC];
     static fixed_point_t golden[MAX_H][MAX_W][MAX_OC];
 
     // randomize inputs
@@ -142,13 +143,13 @@ int main() {
     conv3d_golden(activations, weights, golden, H, W, IC, OC, K, S, P);
 
     // run kernel
-    conv3d_ws(activations, weights, out_kernel, H, W, IC, OC, K, S, P);
+    conv3d_ws(activations, weights, out_ws, H, W, IC, OC, K, S, P);
     // compare results
-    compare_results(out_kernel,golden,OC,H_OUT,W_OUT);
+    compare_results(out_ws,golden,OC,H_OUT,W_OUT);
 
     // run kernel
-    conv3d_os(activations, weights, out_kernel, H, W, IC, OC, K, S, P);
-    compare_results(out_kernel,golden,OC,H_OUT,W_OUT);
+    conv3d_os(activations, weights, out_os, H, W, IC, OC, K, S, P);
+    compare_results(out_os,golden,OC,H_OUT,W_OUT);
 
     return 0;
 }
