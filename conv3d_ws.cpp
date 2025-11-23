@@ -121,7 +121,7 @@ void conv3d_ws(
                         }
                     }
 
-                    local_output[h][w] += sum;
+                    local_output[h][w] += (fixed_point_t)sum;
                 }
             }
         }

@@ -12,11 +12,11 @@ void conv3d_golden(
     int stride,
     int pad
 ){
-    // Compute output shape
+    // compute output shape
     int H_out = (H + 2*pad - K) / stride + 1;
     int W_out = (W + 2*pad - K) / stride + 1;
 
-    // Initialize output
+    // initialize output
     for (int oc = 0; oc < OC; oc++) {
         for (int h = 0; h < H_out; h++) {
             for (int w = 0; w < W_out; w++) {
@@ -25,7 +25,7 @@ void conv3d_golden(
         }
     }
 
-    // Compute convolution
+    // compute convolution
     for (int oc = 0; oc < OC; oc++) {
         for (int oh = 0; oh < H_out; oh++) {
             for (int ow = 0; ow < W_out; ow++) {
@@ -42,7 +42,7 @@ void conv3d_golden(
                             int h_in = h_in_origin + kh;
                             int w_in = w_in_origin + kw;
 
-                            // Check if inside padded input
+                            // check if inside padded input
                             if (h_in >= 0 && h_in < H &&
                                 w_in >= 0 && w_in < W)
                             {
@@ -79,7 +79,8 @@ int main() {
     for (int h = 0; h < H; h++) {
         for (int w = 0; w < W; w++) {
             for (int c = 0; c < IC; c++) {
-                activations[h][w][c] = (rand() % 256) - 128;
+            	float r = ((rand() % 256) / 16.0f) - 8.0f;
+                activations[h][w][c] = (fixed_point_t)r;
             }
         }
     }
@@ -88,7 +89,8 @@ int main() {
         for (int kw = 0; kw < K; kw++) {
             for (int ic = 0; ic < IC; ic++) {
                 for (int oc = 0; oc < OC; oc++) {
-                    weights[kh][kw][ic][oc] = (rand() % 64) - 32;
+                	float r = ((rand() % 64) / 16.0f) - 2.0f;
+                	weights[kh][kw][ic][oc] = (fixed_point_t)r;
                 }
             }
         }
@@ -107,11 +109,16 @@ int main() {
     int errors = 0;
     int H_out = (H + 2*P - K)/S + 1;
     int W_out = (W + 2*P - K)/S + 1;
+    int count = 0;
 
 
     for (int oc = 0; oc < OC; oc++) {
         for (int h = 0; h < H_out; h++) {
             for (int w = 0; w < W_out; w++) {
+            	if (count < 5){
+            		count++;
+            		std::cout << "Match: " << out_kernel[h][w][oc] << std::endl;
+            	}
 
                 if (out_kernel[h][w][oc] != golden[h][w][oc]) {
                     errors++;

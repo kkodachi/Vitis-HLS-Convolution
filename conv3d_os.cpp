@@ -42,7 +42,7 @@ void conv3d_os(
     fixed_point_t local_activations[MAX_H + 2*MAX_K][MAX_W + 2*MAX_K];
     #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=K dim=2
 
-    fixed_point_t local_output[MAX_H][MAX_W][MAX_OC];
+    fixed_point_t local_output[MAX_H][MAX_W];
     #pragma HLS ARRAY_PARTITION variable=local_output cyclic factor=K dim=2
 
     // output dimensions
@@ -115,7 +115,7 @@ void conv3d_os(
         for (int h = 0; h < H_OUT; h++){
             for (int w = 0; w < W_OUT; w++){
                 #pragma HLS PIPELINE II=1
-                output[h][w][oc] = local_output[h][w][oc];
+                output[h][w][oc] = local_output[h][w];
             }
         }
     }
