@@ -4,11 +4,23 @@
 #include "conv3d_kernel.h"
 // using namespace std;
 
+void print_arr(fixed_point_t arr[MAX_H][MAX_W][MAX_OC], int H, int W, int OC){
+	for (int oc = 0; oc < OC; oc++) {
+		std::cout << "OC: " << oc << std::endl;
+	        for (int h = 0; h < H; h++) {
+	            for (int w = 0; w < W; w++) {
+	                std::cout << " " << arr[h][w][oc] << " ";
+	            }
+	            std::cout << std::endl;
+	        }
+	    }
+}
+
 // golden result for comparison
 void conv3d_golden(
     fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
     fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
-    fixed_point_t golden[MAX_H][MAX_W][MAX_OC],
+	fixed_point_t golden[MAX_H][MAX_W][MAX_OC],
     int H, int W, int IC, int OC, int K,
     int stride,
     int pad
@@ -54,7 +66,7 @@ void conv3d_golden(
                     }
                 }
 
-                golden[oh][ow][oc] = (fixed_point_t)sum;
+                golden[oh][ow][oc] = fixed_point_t(sum);
             }
         }
     }
@@ -101,13 +113,13 @@ void compare_results(
 
 int main() {
     // test parameters
-    int H = 32;
-    int W = 32;
-    int IC = 3;
-    int OC = 96;
+    int H = 9;
+    int W = 9;
+    int IC = 1;
+    int OC = 1;
     int K = 3;
-    int S = 2;
-    int P = 1;
+    int S = 1;
+    int P = 0;
     
     static fixed_point_t activations[MAX_H][MAX_W][MAX_IC];
     static fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC];
@@ -119,8 +131,9 @@ int main() {
     for (int h = 0; h < H; h++) {
         for (int w = 0; w < W; w++) {
             for (int c = 0; c < IC; c++) {
-            	float r = ((rand() % 256) / 16.0f) - 8.0f;
-                activations[h][w][c] = (fixed_point_t)r;
+//            	float r = ((rand() % 256) / 16.0f) - 8.0f;
+//                activations[h][w][c] = (fixed_point_t)r;
+            	activations[h][w][c] = (fixed_point_t)1;
             }
         }
     }
@@ -129,8 +142,9 @@ int main() {
         for (int kw = 0; kw < K; kw++) {
             for (int ic = 0; ic < IC; ic++) {
                 for (int oc = 0; oc < OC; oc++) {
-                	float r = ((rand() % 64) / 16.0f) - 2.0f;
-                	weights[kh][kw][ic][oc] = (fixed_point_t)r;
+//                	float r = ((rand() % 64) / 16.0f) - 2.0f;
+//                	weights[kh][kw][ic][oc] = (fixed_point_t)r;
+                	weights[kh][kw][ic][oc] = (fixed_point_t)1;
                 }
             }
         }
@@ -150,6 +164,8 @@ int main() {
     // run kernel
     conv3d_os(activations, weights, out_os, H, W, IC, OC, K, S, P);
     compare_results(out_os,golden,OC,H_OUT,W_OUT);
+
+//    print_arr(golden,H_OUT,W_OUT,OC);
 
     return 0;
 }
