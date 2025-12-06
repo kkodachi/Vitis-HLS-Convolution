@@ -4,15 +4,15 @@
 #include "algorithm"
 
 void conv3d_golden(
-    fixed_point_t input[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
-    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
+    act_t input[MAX_H * MAX_W * MAX_IC],
+    act_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
+    act_t output[MAX_H * MAX_W * MAX_OC],
     int H, int W, int IC, int OC, int K, int S, int P
 ) {
     for (int oc = 0; oc < OC; oc++) {
         for (int h = 0; h < H; h++) {
             for (int w = 0; w < W; w++) {
-                fixed_point_t sum = 0;
+                accum_t sum = 0;
                 for (int ic = 0; ic < IC; ic++) {
                     for (int kh = 0; kh < K; kh++) {
                         for (int kw = 0; kw < K; kw++) {
@@ -27,15 +27,15 @@ void conv3d_golden(
                     }
                 }
                 int out_idx = oc + OC * (w + W * h);
-                output[out_idx] = sum;
+                output[out_idx] = (act_t)sum;
             }
         }
     }
 }
 
 void maxpool_golden(
-    fixed_point_t input[MAX_H*MAX_W*MAX_IC],
-    fixed_point_t output[MAX_H*MAX_W*MAX_IC],
+    act_t input[MAX_H*MAX_W*MAX_IC],
+    act_t output[MAX_H*MAX_W*MAX_IC],
     int H, int W, int C,
     int K, int S
 ) {
@@ -50,14 +50,14 @@ void maxpool_golden(
             for (int c = 0; c < C; c++){
                 // index of first element in window
                 int idx0 = h0 * (MAX_W * MAX_IC) + w0 * (MAX_IC) + c;
-                fixed_point_t cur_max = input[idx0];
+                act_t cur_max = input[idx0];
                 for (int kh = 0; kh < K; kh++) {
                     for (int kw = 0; kw < K; kw++) {
                         int ih = h0 + kh;
                         int iw = w0 + kw;
                         if (ih < H && iw < W) {
                             int idx = ih * (MAX_W * MAX_IC) + iw * (MAX_IC) + c;
-                            fixed_point_t val = input[idx];
+                            act_t val = input[idx];
                             if (val > cur_max) cur_max = val;
                         }
                     }
@@ -72,8 +72,8 @@ void maxpool_golden(
 }
 
 void avgpool_golden(
-    fixed_point_t input[MAX_H*MAX_W*MAX_IC],
-    fixed_point_t output[MAX_H*MAX_W*MAX_IC],
+    act_t input[MAX_H*MAX_W*MAX_IC],
+    act_t output[MAX_H*MAX_W*MAX_IC],
     int H, int W, int C,
     int K, int S
 ){
@@ -102,14 +102,14 @@ void avgpool_golden(
 
                 // write pooled value to output
                 int out_idx = oh*(MAX_W * MAX_IC) + ow*(MAX_IC) + c;
-                output[out_idx] = (fixed_point_t)(accum / (K * K));
+                output[out_idx] = (act_t)(accum / (K * K));
             }
         }
     }
 }
 
 void relu_golden(
-    fixed_point_t input[MAX_H*MAX_W*MAX_IC],
+    act_t input[MAX_H*MAX_W*MAX_IC],
     int H, int W, int C
 ){
     for (int h = 0; h < H; h++){
@@ -124,8 +124,8 @@ void relu_golden(
 }
 
 void compare(
-    fixed_point_t golden[MAX_H * MAX_W * MAX_OC],
-    fixed_point_t kernel[MAX_H * MAX_W * MAX_OC],
+    act_t golden[MAX_H * MAX_W * MAX_OC],
+    act_t kernel[MAX_H * MAX_W * MAX_OC],
     int H, int W, int OC
 ) {
     int count = 0;
@@ -159,8 +159,8 @@ int main(){
     int P = 0;
     
     // INPUT ARRAYS
-    static fixed_point_t input[MAX_H * MAX_W * MAX_IC];
-    static fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC];
+    static act_t input[MAX_H * MAX_W * MAX_IC];
+    static weight_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC];
 
     // // fill input with random values in [-8, 7.9375]
     for (int i = 0; i < H * W * IC; i++) {
@@ -175,12 +175,12 @@ int main(){
     }
 
     // OUTPUT ARRAYS
-    static fixed_point_t conv_out[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t conv_golden[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t mpool_out[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t mpool_golden[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t apool_out[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t apool_golden[MAX_H * MAX_W * MAX_OC];
+    static act_t conv_out[MAX_H * MAX_W * MAX_OC];
+    static act_t conv_golden[MAX_H * MAX_W * MAX_OC];
+    static act_t mpool_out[MAX_H * MAX_W * MAX_OC];
+    static act_t mpool_golden[MAX_H * MAX_W * MAX_OC];
+    static act_t apool_out[MAX_H * MAX_W * MAX_OC];
+    static act_t apool_golden[MAX_H * MAX_W * MAX_OC];
 
     // zero outputs
     for (int i = 0; i < MAX_H * MAX_W * MAX_OC; i++){
@@ -211,7 +211,7 @@ int main(){
     compare(apool_golden, apool_out, H, W, OC);
 
     // RELU TEST
-    static fixed_point_t input2[MAX_H * MAX_W * MAX_IC];
+    static act_t input2[MAX_H * MAX_W * MAX_IC];
     // copy input to second input, relu modifies input
     for (int i = 0; i < H * W * IC; i++) {
         input2[i] = input[i];

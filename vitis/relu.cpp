@@ -2,7 +2,7 @@
 #include "kernel.h"
 
 void relu(
-    fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
+    act_t activations[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
     int W,      // input width
     int IC     // input channels
