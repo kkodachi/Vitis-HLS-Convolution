@@ -43,7 +43,7 @@ void maxpool(
                 #pragma HLS PIPELINE II=1
                 // index of first element in window
                 int idx0 = h0 * (MAX_W * MAX_IC) + w0 * (MAX_IC) + c;
-                fixed_point_t cur_max = activations[idx0];
+                act_t cur_max = activations[idx0];
 
                 KH_LOOP:
                 for (int kh = 0; kh < K; kh++) {
@@ -55,7 +55,7 @@ void maxpool(
                         int iw = w0 + kw;
                         if (ih < H && iw < W) {
                             int idx = ih * (MAX_W * MAX_IC) + iw * (MAX_IC) + c;
-                            fixed_point_t val = activations[idx];
+                            act_t val = activations[idx];
                             if (val > cur_max) cur_max = val;
                         }
                     }

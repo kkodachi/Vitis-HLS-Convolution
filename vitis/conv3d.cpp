@@ -84,9 +84,9 @@ void conv3d(
     #pragma HLS INTERFACE m_axi port=weights     offset=slave depth=589824
     #pragma HLS INTERFACE m_axi port=output      offset=slave depth=262144
 
-    fixed_point_t local_weights[MAX_K * MAX_K * MAX_IC];
-    fixed_point_t local_activations[(MAX_H + 2*MAX_K)*(MAX_W + 2*MAX_K)];
-    fixed_point_t local_output[MAX_H * MAX_W];
+    weight_t local_weights[MAX_K * MAX_K * MAX_IC];
+    act_t local_activations[(MAX_H + 2*MAX_K)*(MAX_W + 2*MAX_K)];
+    act_t local_output[MAX_H * MAX_W];
 
     int H_OUT = (H + 2*pad - K)/stride + 1;
     int W_OUT = (W + 2*pad - K)/stride + 1;

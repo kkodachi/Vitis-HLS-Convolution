@@ -16,8 +16,8 @@ void relu(
             for (int c = 0; c < IC; c++){
                 #pragma HLS PIPELINE II=1
                 int idx = h * (MAX_W * MAX_IC) + w * (MAX_IC) + c;
-                fixed_point_t x = activations[idx];
-                activations[idx] = (x > 0) ? x : (fixed_point_t)0;
+                act_t x = activations[idx];
+                activations[idx] = (x > 0) ? x : (act_t)0;
             }
         }
     }

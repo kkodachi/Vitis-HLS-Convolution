@@ -2,8 +2,8 @@
 #include "kernel.h"
 
 void avgpool(
-    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t output[MAX_H * MAX_W * MAX_IC],
+    const act_t activations[MAX_H * MAX_W * MAX_IC],
+    act_t output[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
     int W,      // input width
     int IC,     // input channels
@@ -60,7 +60,7 @@ void avgpool(
 
                 // write pooled value to output
                 int out_idx = oh*(MAX_W * MAX_IC) + ow*(MAX_IC) + c;
-                output[out_idx] = (fixed_point_t)(accum / (K * K));
+                output[out_idx] = (act_t)(accum / (K * K));
             }
         }
     }
