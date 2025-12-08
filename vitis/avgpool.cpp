@@ -2,8 +2,8 @@
 #include "kernel.h"
 
 void avgpool(
-    const act_t activations[MAX_H * MAX_W * MAX_IC],
-    act_t output[MAX_H * MAX_W * MAX_IC],
+    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t output[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
     int W,      // input width
     int IC,     // input channels
@@ -31,6 +31,9 @@ void avgpool(
     const int outH = (H - K) / stride + 1;
     const int outW = (W - K) / stride + 1;
 
+    fixed_point_t window[MAX_K * MAX_K * MAX_IC];
+    #pragma HLS ARRAY_PARTITION variable=window complete dim=1
+
     H_LOOP:
     for (int oh = 0; oh < outH; oh++){
         W_LOOP:
@@ -38,29 +41,42 @@ void avgpool(
             const int h0 = oh * stride;
             const int w0 = ow * stride;
 
-            CH_LOOP:
-            for (int c = 0; c < IC; c++){
-                #pragma HLS PIPELINE II=1
-                accum_t accum = 0;
-
-                KH_LOOP:
-                for (int kh = 0; kh < K; kh++) {
-                    #pragma HLS UNROLL
-                    KW_LOOP:
-                    for (int kw = 0; kw < K; kw++) {
-                        #pragma HLS UNROLL
+            CH_LOAD:
+            for (int kh = 0; kh < K; kh++) {
+                for (int kw = 0; kw < K; kw++) {
+                    for (int c = 0; c < IC; c++) {
+                        #pragma HLS PIPELINE II=1
                         int ih = h0 + kh;
                         int iw = w0 + kw;
-                        if (ih < H && iw < W) {
-                            int idx = ih * (MAX_W * MAX_IC) + iw * (MAX_IC) + c;
-                            accum += activations[idx];
-                        }
+
+                        int local_idx = c * K * K + kh * K + kw;
+                        int idx = ih * (MAX_W * MAX_IC) + iw * MAX_IC + c;
+
+                        if (ih < H && iw < W)
+                            window[local_idx] = activations[idx];
+                        else
+                            window[local_idx] = 0; // padding
                     }
                 }
+            }
+
+            for (int c = 0; c < IC; c++) {
+                #pragma HLS PIPELINE II=1
+
+                fixed_point_t sum = 0;
+
+                // sum over the K*K elements for this channel
+                for (int i = 0; i < K * K; i++) {
+                    int local_idx = c * K * K + i;
+                    sum += window[local_idx];
+                }
+
+                // compute average
+                fixed_point_t avg = sum / (K * K);
 
                 // write pooled value to output
-                int out_idx = oh*(MAX_W * MAX_IC) + ow*(MAX_IC) + c;
-                output[out_idx] = (act_t)(accum / (K * K));
+                int out_idx = oh * (MAX_W * MAX_IC) + ow * MAX_IC + c;
+                output[out_idx] = avg;
             }
         }
     }

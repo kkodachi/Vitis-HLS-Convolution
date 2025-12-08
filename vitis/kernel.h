@@ -13,9 +13,9 @@
 // TODO: add top function to call entire model
 
 void conv3d(
-    act_t activations[MAX_H * MAX_W * MAX_IC],
-    weight_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
-    act_t output[MAX_H * MAX_W * MAX_OC],
+    fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
+    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
 
     int H,      // input height
     int W,      // input width
@@ -27,8 +27,8 @@ void conv3d(
 );
 
 void maxpool(
-    const act_t activations[MAX_H * MAX_W * MAX_IC],
-    act_t output[MAX_H * MAX_W * MAX_IC],
+    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t output[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
     int W,      // input width
     int IC,     // input channels
@@ -37,8 +37,8 @@ void maxpool(
 );
 
 void avgpool(
-    const act_t activations[MAX_H * MAX_W * MAX_IC],
-    act_t output[MAX_H * MAX_W * MAX_IC],
+    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t output[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
     int W,      // input width
     int IC,     // input channels
@@ -47,7 +47,7 @@ void avgpool(
 );
 
 void relu(
-    act_t activations[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
     int W,      // input width
     int IC     // input channels

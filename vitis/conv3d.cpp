@@ -1,8 +1,8 @@
 #include "kernel.h"
 
 void load_weights(
-    const weight_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
-    weight_t local_weights[MAX_K * MAX_K * MAX_IC],
+    const fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
+    fixed_point_t local_weights[MAX_K * MAX_K * MAX_IC],
     int IC, int K, int oc
 ){
     LOAD_WEIGHTS:
@@ -28,8 +28,8 @@ void load_weights(
 }
 
 void load_activations(
-    const act_t activations[MAX_H * MAX_W * MAX_IC],
-    act_t local_activations[(MAX_H + 2*MAX_K)*(MAX_W + 2*MAX_K)],
+    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t local_activations[(MAX_H + 2*MAX_K)*(MAX_W + 2*MAX_K)],
     int H, int W, int ic, int pad
 ){
     LOAD_ACTIVATION:
@@ -58,9 +58,9 @@ weights[K][K][IC][OC]
 output[HOUT][W_OUT[OC]]
 */
 void conv3d(
-    act_t activations[MAX_H * MAX_W * MAX_IC],
-    weight_t weights[MAX_K * MAX_K * MAX_IC *MAX_OC],
-    act_t output[MAX_H * MAX_W * MAX_OC],
+    fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t weights[MAX_K * MAX_K * MAX_IC *MAX_OC],
+    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
 
     int H,      // input height
     int W,      // input width
@@ -84,9 +84,9 @@ void conv3d(
     #pragma HLS INTERFACE m_axi port=weights     offset=slave depth=589824
     #pragma HLS INTERFACE m_axi port=output      offset=slave depth=262144
 
-    weight_t local_weights[MAX_K * MAX_K * MAX_IC];
-    act_t local_activations[(MAX_H + 2*MAX_K)*(MAX_W + 2*MAX_K)];
-    act_t local_output[MAX_H * MAX_W];
+    fixed_point_t local_weights[MAX_K * MAX_K * MAX_IC];
+    fixed_point_t local_activations[(MAX_H + 2*MAX_K)*(MAX_W + 2*MAX_K)];
+    fixed_point_t local_output[MAX_H * MAX_W];
 
     int H_OUT = (H + 2*pad - K)/stride + 1;
     int W_OUT = (W + 2*pad - K)/stride + 1;
@@ -131,7 +131,7 @@ void conv3d(
                         }
                     }
                     int out_idx = h * (MAX_W) + w;
-                    local_output[out_idx] += (act_t)sum;
+                    local_output[out_idx] += (fixed_point_t)sum;
                 }
             }
         }

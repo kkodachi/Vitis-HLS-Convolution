@@ -1,8 +1,8 @@
 #include "kernel.h"
 
 void maxpool(
-    const act_t activations[MAX_H * MAX_W * MAX_IC],
-    act_t output[MAX_H * MAX_W * MAX_IC],
+    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t output[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
     int W,      // input width
     int IC,     // input channels
@@ -30,6 +30,9 @@ void maxpool(
     const int outH = (H - K) / stride + 1;
     const int outW = (W - K) / stride + 1;
 
+    fixed_point_t window[MAX_K * MAX_K * MAX_IC];
+    #pragma HLS ARRAY_PARTITION variable=window complete dim=1
+
     H_LOOP:
     for (int oh = 0; oh < outH; oh++){
         W_LOOP:
@@ -38,33 +41,43 @@ void maxpool(
             const int h0 = oh * stride;
             const int w0 = ow * stride;
 
-            CH_LOOP:
-            for (int c = 0; c < IC; c++){
-                #pragma HLS PIPELINE II=1
-                // index of first element in window
-                int idx0 = h0 * (MAX_W * MAX_IC) + w0 * (MAX_IC) + c;
-                act_t cur_max = activations[idx0];
-
-                KH_LOOP:
-                for (int kh = 0; kh < K; kh++) {
-                    #pragma HLS UNROLL
-                    KW_LOOP:
-                    for (int kw = 0; kw < K; kw++) {
-                        #pragma HLS UNROLL
+            CH_LOAD:
+            for (int kh = 0; kh < K; kh++) {
+                for (int kw = 0; kw < K; kw++) {
+                    for (int c = 0; c < IC; c++) {
+                        #pragma HLS PIPELINE II=1
                         int ih = h0 + kh;
                         int iw = w0 + kw;
-                        if (ih < H && iw < W) {
-                            int idx = ih * (MAX_W * MAX_IC) + iw * (MAX_IC) + c;
-                            act_t val = activations[idx];
-                            if (val > cur_max) cur_max = val;
-                        }
+
+                        int local_idx = c * K * K + kh * K + kw;
+                        int idx = ih * (MAX_W * MAX_IC) + iw * MAX_IC + c;
+
+                        if (ih < H && iw < W)
+                            window[local_idx] = activations[idx];
+                        else
+                            window[local_idx] = 0; // padding
                     }
                 }
+            }
 
-                // write pooled value to output
-                int out_idx = oh*(MAX_W * MAX_IC) + ow*(MAX_IC) + c;
+            CH_LOOP:
+            for (int c = 0; c < IC; c++) {
+                #pragma HLS PIPELINE II=1
+
+                // init to first element
+                fixed_point_t cur_max = window[c * K * K];
+
+                for (int i = 1; i < K * K; i++) {
+                    int local_idx = c * K * K + i;
+                    if (window[local_idx] > cur_max)
+                        cur_max = window[local_idx];
+                }
+
+                // write to output
+                int out_idx = oh * (MAX_W * MAX_IC) + ow * MAX_IC + c;
                 output[out_idx] = cur_max;
             }
+
         }
     }
 }
