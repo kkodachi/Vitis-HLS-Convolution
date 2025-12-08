@@ -63,7 +63,7 @@ void avgpool(
             for (int c = 0; c < IC; c++) {
                 #pragma HLS PIPELINE II=1
 
-                fixed_point_t sum = 0;
+                accum_t sum = 0;
 
                 // sum over the K*K elements for this channel
                 for (int i = 0; i < K * K; i++) {
