@@ -32,7 +32,7 @@ void avgpool(
     const int outW = (W - K) / stride + 1;
 
     fixed_point_t window[MAX_K * MAX_K * MAX_IC];
-    #pragma HLS ARRAY_PARTITION variable=window complete dim=1
+    // #pragma HLS ARRAY_PARTITION variable=window complete dim=1
 
     H_LOOP:
     for (int oh = 0; oh < outH; oh++){
