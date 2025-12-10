@@ -1,13 +1,18 @@
-
 #include "kernel.h"
 
 void relu(
+    bool enable,
     fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
     int W,      // input width
     int IC     // input channels
 )
 {
+    if (!enable) return;
+
+    #pragma HLS INTERFACE s_axilite port=enable
+    #pragma HLS INTERFACE s_axilite port=return
+
     H_LOOP:
     for (int h = 0; h < H; h++){
         W_LOOP:

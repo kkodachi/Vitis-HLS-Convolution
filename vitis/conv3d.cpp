@@ -58,6 +58,7 @@ weights[K][K][IC][OC]
 output[HOUT][W_OUT[OC]]
 */
 void conv3d(
+    bool enable,
     fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
     fixed_point_t weights[MAX_K * MAX_K * MAX_IC *MAX_OC],
     fixed_point_t output[MAX_H * MAX_W * MAX_OC],
@@ -71,6 +72,9 @@ void conv3d(
     int pad     // padding
 )
 {
+    if (!enable) return;
+
+    #pragma HLS INTERFACE s_axilite port=enable
     #pragma HLS INTERFACE s_axilite port=H
     #pragma HLS INTERFACE s_axilite port=W
     #pragma HLS INTERFACE s_axilite port=IC
@@ -145,6 +149,3 @@ void conv3d(
         }
     }
 }
-
-
-

@@ -13,6 +13,7 @@
 // TODO: add top function to call entire model
 
 void conv3d(
+    bool enable,
     fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
     fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
     fixed_point_t output[MAX_H * MAX_W * MAX_OC],
@@ -27,6 +28,7 @@ void conv3d(
 );
 
 void maxpool(
+    bool enable,
     const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
     fixed_point_t output[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
@@ -37,6 +39,7 @@ void maxpool(
 );
 
 void avgpool(
+    bool enable,
     const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
     fixed_point_t output[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
@@ -47,8 +50,39 @@ void avgpool(
 );
 
 void relu(
+    bool enable,
     fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
     int W,      // input width
     int IC     // input channels
+);
+
+void fire_module(
+    bool enable,
+    const fixed_point_t input[MAX_H * MAX_W * MAX_IC],
+    const fixed_point_t squeeze_weights[1 * 1 * MAX_IC * MAX_OC],
+    const fixed_point_t expand1x1_weights[1 * 1 * MAX_IC * MAX_OC],
+    const fixed_point_t expand3x3_weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
+    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
+    int H,
+    int W,
+    int IC,
+    int squeeze_ch,
+    int expand_ch
+);
+
+void controller(
+    int stage,
+    bool* en_conv,
+    bool* en_maxpool,
+    bool* en_avgpool,
+    bool* en_relu,
+    bool* en_fire
+);
+
+void squeezenet_top(
+    fixed_point_t input[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t output[10],
+    fixed_point_t* all_weights,
+    int num_stages
 );

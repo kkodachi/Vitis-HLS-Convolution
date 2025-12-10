@@ -166,6 +166,51 @@ void relu_golden(
     }
 }
 
+void fire_module_golden(
+    fixed_point_t input[MAX_H * MAX_W * MAX_IC],
+    fixed_point_t squeeze_weights[1 * 1 * MAX_IC * MAX_OC],
+    fixed_point_t expand1x1_weights[1 * 1 * MAX_IC * MAX_OC],
+    fixed_point_t expand3x3_weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
+    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
+    int H, int W, int IC, int squeeze_ch, int expand_ch
+){
+    static fixed_point_t squeeze_out[MAX_H * MAX_W * MAX_IC];
+    static fixed_point_t expand1x1_out[MAX_H * MAX_W * MAX_OC];
+    static fixed_point_t expand3x3_out[MAX_H * MAX_W * MAX_OC];
+
+    // squeeze: 1x1 conv
+    conv3d_golden(input, squeeze_weights, squeeze_out, H, W, IC, squeeze_ch, 1, 1, 0);
+    // relu after squeeze
+    relu_golden(squeeze_out, H, W, squeeze_ch);
+
+    // expand 1x1: 1x1 conv
+    conv3d_golden(squeeze_out, expand1x1_weights, expand1x1_out, H, W, squeeze_ch, expand_ch, 1, 1, 0);
+
+    // expand 3x3: 3x3 conv with pad=1
+    conv3d_golden(squeeze_out, expand3x3_weights, expand3x3_out, H, W, squeeze_ch, expand_ch, 3, 1, 1);
+
+    // concatenate expand1x1 and expand3x3 along channel dimension
+    for (int h = 0; h < H; h++){
+        for (int w = 0; w < W; w++){
+            // first half: expand1x1
+            for (int c = 0; c < expand_ch; c++){
+                int idx_in = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
+                int idx_out = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
+                output[idx_out] = expand1x1_out[idx_in];
+            }
+            // second half: expand3x3
+            for (int c = 0; c < expand_ch; c++){
+                int idx_in = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
+                int idx_out = h * (MAX_W * MAX_OC) + w * (MAX_OC) + expand_ch + c;
+                output[idx_out] = expand3x3_out[idx_in];
+            }
+        }
+    }
+
+    // relu on concatenated output
+    relu_golden(output, H, W, expand_ch * 2);
+}
+
 void compare(
     fixed_point_t golden[MAX_H * MAX_W * MAX_OC],
     fixed_point_t kernel[MAX_H * MAX_W * MAX_OC],
@@ -229,32 +274,36 @@ int main(){
     static fixed_point_t mpool_golden[MAX_H * MAX_W * MAX_OC];
     static fixed_point_t apool_out[MAX_H * MAX_W * MAX_OC];
     static fixed_point_t apool_golden[MAX_H * MAX_W * MAX_OC];
+    static fixed_point_t fire_out[MAX_H * MAX_W * MAX_OC];
+    static fixed_point_t fire_golden[MAX_H * MAX_W * MAX_OC];
 
     // zero outputs
     for (int i = 0; i < MAX_H * MAX_W * MAX_OC; i++){
-        conv_out[MAX_H * MAX_W * MAX_OC] = 0;
-        conv_golden[MAX_H * MAX_W * MAX_OC] = 0;
-        mpool_out[MAX_H * MAX_W * MAX_OC] = 0;
-        mpool_golden[MAX_H * MAX_W * MAX_OC] = 0;
-        apool_out[MAX_H * MAX_W * MAX_OC] = 0;
-        apool_golden[MAX_H * MAX_W * MAX_OC] = 0;
+        conv_out[i] = 0;
+        conv_golden[i] = 0;
+        mpool_out[i] = 0;
+        mpool_golden[i] = 0;
+        apool_out[i] = 0;
+        apool_golden[i] = 0;
+        fire_out[i] = 0;
+        fire_golden[i] = 0;
     }
 
     // CONV TEST
     conv3d_golden(input, weights, conv_golden, H, W, IC, OC, K, S, P); // compute golden
-    conv3d(input, weights, conv_out, H, W, IC, OC, K, S, P);
+    conv3d(true, input, weights, conv_out, H, W, IC, OC, K, S, P);
     std::cout << "Comparing Conv results" << std::endl;
     compare(conv_out, conv_golden, H, W, OC); // compare outputs
 
     // MAXPOOL TEST
 //    maxpool_golden(input, mpool_golden, H, W, IC, K, S);
-//    maxpool(input, mpool_out, H, W, IC, K, S);
+//    maxpool(true, input, mpool_out, H, W, IC, K, S);
 //    std::cout << "Comparing Max Pool results" << std::endl;
 //    compare(mpool_golden, mpool_out, H, W, OC);
 
     // AVGPOOL TEST
 //    avgpool_golden(input, apool_golden, H, W, IC, K, S);
-//    avgpool(input, apool_out, H, W, IC, K, S);
+//    avgpool(true, input, apool_out, H, W, IC, K, S);
 //    std::cout << "Comparing Avg Pool results" << std::endl;
 //    compare(apool_golden, apool_out, H, W, OC);
 
@@ -266,7 +315,35 @@ int main(){
 //    }
 //
 //    relu_golden(input,H,W,IC);
-//    relu(input2,H,W,IC);
+//    relu(true, input2,H,W,IC);
 //    std::cout << "Comparing ReLU results" << std::endl;
 //    compare(input, input2, H, W, OC);
+
+    // FIRE MODULE TEST
+//    int squeeze_ch = 16;
+//    int expand_ch = 64;
+//    static fixed_point_t squeeze_weights[1 * 1 * MAX_IC * MAX_OC];
+//    static fixed_point_t expand1x1_weights[1 * 1 * MAX_IC * MAX_OC];
+//    static fixed_point_t expand3x3_weights[MAX_K * MAX_K * MAX_IC * MAX_OC];
+//
+//    // fill fire module weights with random values
+//    for (int i = 0; i < 1 * 1 * IC * squeeze_ch; i++) {
+//        int steps = std::rand() % 256;
+//        squeeze_weights[i] = -8.0f + 0.0625f * steps;
+//    }
+//    for (int i = 0; i < 1 * 1 * squeeze_ch * expand_ch; i++) {
+//        int steps = std::rand() % 256;
+//        expand1x1_weights[i] = -8.0f + 0.0625f * steps;
+//    }
+//    for (int i = 0; i < 3 * 3 * squeeze_ch * expand_ch; i++) {
+//        int steps = std::rand() % 256;
+//        expand3x3_weights[i] = -8.0f + 0.0625f * steps;
+//    }
+//
+//    fire_module_golden(input, squeeze_weights, expand1x1_weights, expand3x3_weights, 
+//                       fire_golden, H, W, IC, squeeze_ch, expand_ch);
+//    fire_module(true, input, squeeze_weights, expand1x1_weights, expand3x3_weights, 
+//                fire_out, H, W, IC, squeeze_ch, expand_ch);
+//    std::cout << "Comparing Fire Module results" << std::endl;
+//    compare(fire_golden, fire_out, H, W, expand_ch * 2);
 }

@@ -2,6 +2,7 @@
 #include "kernel.h"
 
 void avgpool(
+    bool enable,
     const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
     fixed_point_t output[MAX_H * MAX_W * MAX_IC],
     int H,      // input height
@@ -11,6 +12,9 @@ void avgpool(
     int stride  // stride
 )
 {
+    if (!enable) return;
+
+    #pragma HLS INTERFACE s_axilite port=enable
     #pragma HLS INTERFACE m_axi port=activations offset=slave bundle=gmem0 depth=524288
     #pragma HLS INTERFACE m_axi port=output      offset=slave bundle=gmem1 depth=524288
 
@@ -81,6 +85,3 @@ void avgpool(
         }
     }
 }
-
-
-
