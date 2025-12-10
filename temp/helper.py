@@ -133,7 +133,7 @@ def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu'
       with torch.no_grad():
         for inputs, labels in test_loader:
           inputs, labels = inputs.to(device), labels.to(device)
-          outputs = model(inputs) # forward pass
+          outputs = model(inputs,e) # forward pass
           loss = criterion_test(outputs,labels) # get loss from cost function
           test_loss += loss.item() * labels.size(0) # update loss
           _, pred_ind = outputs.max(1) # get index of prediction (highest value)
