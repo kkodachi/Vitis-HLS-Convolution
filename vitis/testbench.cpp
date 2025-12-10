@@ -55,20 +55,20 @@ void conv3d_golden(
                             if (in_h < 0 || in_h >= H || in_w < 0 || in_w >= W)
                                 continue;
                             int wt_idx =
-                                kh * (K * IC * OC)
-                              + kw * (IC * OC)
-                              + ic * (OC)
+                                kh * (MAX_K * MAX_IC * MAX_OC)
+                              + kw * (MAX_IC * MAX_OC)
+                              + ic * (MAX_OC)
                               + oc;
 
                             int in_idx =
-                                ic + IC * (in_w + W * in_h);
+                                in_h * (MAX_W * MAX_IC) + in_w * (MAX_IC) + ic;
 
                             sum_total += input[in_idx] * weights[wt_idx];
                         }
                     }
                 }
 
-                int out_idx = oc + OC * (w + W * h);
+                int out_idx = h * (MAX_W * MAX_OC) + w * (MAX_OC) + oc;
                 output[out_idx] = (fixed_point_t)sum_total;
             }
         }
@@ -254,7 +254,7 @@ int main(){
     for (int i = 0; i < H * W * IC; i++) {
         // int steps = std::rand() % 65536;  // 0 to 65535 possible steps
         // input[i] = -32.0f + 0.0009765625f * steps; // 2^-10
-        int steps = std::rand() % 256;  // 8-bit range → 0 to 255
+        int steps = std::rand() % 256;  // 8-bit range â†' 0 to 255
         input[i] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
     }
 
