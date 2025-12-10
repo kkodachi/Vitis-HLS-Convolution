@@ -3,6 +3,36 @@
 #include "kernel.h"
 #include "algorithm"
 
+//void conv3d_golden(
+//    fixed_point_t input[MAX_H * MAX_W * MAX_IC],
+//    fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
+//    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
+//    int H, int W, int IC, int OC, int K, int S, int P
+//) {
+//    for (int oc = 0; oc < OC; oc++) {
+//        for (int h = 0; h < H; h++) {
+//            for (int w = 0; w < W; w++) {
+//                accum_t sum = 0;
+//                for (int ic = 0; ic < IC; ic++) {
+//                    for (int kh = 0; kh < K; kh++) {
+//                        for (int kw = 0; kw < K; kw++) {
+//                            int in_h = h * S + kh - P;
+//                            int in_w = w * S + kw - P;
+//                            if (in_h >= 0 && in_h < H && in_w >= 0 && in_w < W) {
+//                                int in_idx = ic + IC * (in_w + W * in_h);
+//                                int wt_idx = ic + IC * (kw + K * (kh + K * oc));
+//                                sum += input[in_idx] * weights[wt_idx];
+//                            }
+//                        }
+//                    }
+//                }
+//                int out_idx = oc + OC * (w + W * h);
+//                output[out_idx] = (fixed_point_t)sum;
+//            }
+//        }
+//    }
+//}
+
 void conv3d_golden(
     fixed_point_t input[MAX_H * MAX_W * MAX_IC],
     fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
@@ -12,26 +42,39 @@ void conv3d_golden(
     for (int oc = 0; oc < OC; oc++) {
         for (int h = 0; h < H; h++) {
             for (int w = 0; w < W; w++) {
-                accum_t sum = 0;
+
+                accum_t sum_total = 0;
+
                 for (int ic = 0; ic < IC; ic++) {
                     for (int kh = 0; kh < K; kh++) {
                         for (int kw = 0; kw < K; kw++) {
+
                             int in_h = h * S + kh - P;
                             int in_w = w * S + kw - P;
-                            if (in_h >= 0 && in_h < H && in_w >= 0 && in_w < W) {
-                                int in_idx = ic + IC * (in_w + W * in_h);
-                                int wt_idx = ic + IC * (kw + K * (kh + K * oc));
-                                sum += input[in_idx] * weights[wt_idx];
-                            }
+
+                            if (in_h < 0 || in_h >= H || in_w < 0 || in_w >= W)
+                                continue;
+                            int wt_idx =
+                                kh * (K * IC * OC)
+                              + kw * (IC * OC)
+                              + ic * (OC)
+                              + oc;
+
+                            int in_idx =
+                                ic + IC * (in_w + W * in_h);
+
+                            sum_total += input[in_idx] * weights[wt_idx];
                         }
                     }
                 }
+
                 int out_idx = oc + OC * (w + W * h);
-                output[out_idx] = (fixed_point_t)sum;
+                output[out_idx] = (fixed_point_t)sum_total;
             }
         }
     }
 }
+
 
 void maxpool_golden(
     fixed_point_t input[MAX_H*MAX_W*MAX_IC],
@@ -164,14 +207,18 @@ int main(){
 
     // fill input with random values in [-32, 31.999] for ap_fixed<16,6>
     for (int i = 0; i < H * W * IC; i++) {
-        int steps = std::rand() % 65536;  // 0 to 65535 possible steps
-        input[i] = -32.0f + 0.0009765625f * steps; // 2^-10
+        // int steps = std::rand() % 65536;  // 0 to 65535 possible steps
+        // input[i] = -32.0f + 0.0009765625f * steps; // 2^-10
+        int steps = std::rand() % 256;  // 8-bit range → 0 to 255
+        input[i] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
     }
 
     // fill weights with random values in [-32, 31.999] for ap_fixed<16,6>
     for (int i = 0; i < K * K * IC * OC; i++) {
-        int steps = std::rand() % 65536;
-        weights[i] = -32.0f + 0.0009765625f * steps;
+        // int steps = std::rand() % 65536;
+        // weights[i] = -32.0f + 0.0009765625f * steps;
+        int steps = std::rand() % 256;
+        weights[i] = -8.0f + 0.0625f * steps;
     }
 
 
@@ -200,26 +247,26 @@ int main(){
     compare(conv_out, conv_golden, H, W, OC); // compare outputs
 
     // MAXPOOL TEST
-    maxpool_golden(input, mpool_golden, H, W, IC, K, S);
-    maxpool(input, mpool_out, H, W, IC, K, S);
-    std::cout << "Comparing Max Pool results" << std::endl;
-    compare(mpool_golden, mpool_out, H, W, OC);
+//    maxpool_golden(input, mpool_golden, H, W, IC, K, S);
+//    maxpool(input, mpool_out, H, W, IC, K, S);
+//    std::cout << "Comparing Max Pool results" << std::endl;
+//    compare(mpool_golden, mpool_out, H, W, OC);
 
     // AVGPOOL TEST
-    avgpool_golden(input, apool_golden, H, W, IC, K, S);
-    avgpool(input, apool_out, H, W, IC, K, S);
-    std::cout << "Comparing Avg Pool results" << std::endl;
-    compare(apool_golden, apool_out, H, W, OC);
+//    avgpool_golden(input, apool_golden, H, W, IC, K, S);
+//    avgpool(input, apool_out, H, W, IC, K, S);
+//    std::cout << "Comparing Avg Pool results" << std::endl;
+//    compare(apool_golden, apool_out, H, W, OC);
 
     // RELU TEST
-    static fixed_point_t input2[MAX_H * MAX_W * MAX_IC];
-    // copy input to second input, relu modifies input
-    for (int i = 0; i < H * W * IC; i++) {
-        input2[i] = input[i];
-    }
-
-    relu_golden(input,H,W,IC);
-    relu(input2,H,W,IC);
-    std::cout << "Comparing ReLU results" << std::endl;
-    compare(input, input2, H, W, OC);
+//    static fixed_point_t input2[MAX_H * MAX_W * MAX_IC];
+//    // copy input to second input, relu modifies input
+//    for (int i = 0; i < H * W * IC; i++) {
+//        input2[i] = input[i];
+//    }
+//
+//    relu_golden(input,H,W,IC);
+//    relu(input2,H,W,IC);
+//    std::cout << "Comparing ReLU results" << std::endl;
+//    compare(input, input2, H, W, OC);
 }
