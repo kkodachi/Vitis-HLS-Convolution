@@ -24,56 +24,82 @@ void squeezenet_top(
     fixed_point_t* current_input = input;
     fixed_point_t* current_output = buffer1;
 
-    // weight pointers (simplified - in practice, slice all_weights appropriately)
-    fixed_point_t* conv_weights = all_weights;
-    fixed_point_t* fire_squeeze_weights = all_weights;
-    fixed_point_t* fire_expand1x1_weights = all_weights;
-    fixed_point_t* fire_expand3x3_weights = all_weights;
-
-    // layer dimensions (example for CIFAR-10 upsampled to 32x32)
-    int H = 32;
-    int W = 32;
-    int IC = 3;
-    int OC = 64;
+    // layer dimensions from controller
+    int H_in, W_in, IC_in;
+    int H_out, W_out, OC_out;
+    
+    // layer-specific parameters from controller
+    int K, stride, pad;
+    int squeeze_ch, expand_ch;
+    int weight_offset;
 
     // main loop - iterate through stages
     STAGE_LOOP:
     for (int stage = 0; stage < num_stages; stage++) {
         #pragma HLS LOOP_TRIPCOUNT min=16 max=16
         
-        // get enable signals from controller
-        controller(stage, &en_conv, &en_maxpool, &en_avgpool, &en_relu, &en_fire);
+        // get ALL configuration from controller
+        controller(stage, &en_conv, &en_maxpool, &en_avgpool, &en_relu, &en_fire,
+                   &H_in, &W_in, &IC_in, &H_out, &W_out, &OC_out,
+                   &K, &stride, &pad, &squeeze_ch, &expand_ch, &weight_offset);
 
-        // execute enabled module
-        conv3d(en_conv, current_input, conv_weights, current_output, 
-               H, W, IC, OC, 3, 1, 1);
+        // weight pointers with proper offsets
+        fixed_point_t* stage_weights = all_weights + weight_offset;
         
-        maxpool(en_maxpool, current_input, current_output, 
-                H, W, IC, 2, 2);
+        // for fire modules, calculate offsets for three weight sets
+        int squeeze_weight_size = 1 * 1 * IC_in * squeeze_ch;
+        int expand1x1_weight_size = 1 * 1 * squeeze_ch * expand_ch;
         
-        avgpool(en_avgpool, current_input, current_output, 
-                H, W, IC, 13, 1);
-        
-        relu(en_relu, current_input, H, W, IC);
-        
-        fire_module(en_fire, current_input, fire_squeeze_weights,
-                    fire_expand1x1_weights, fire_expand3x3_weights,
-                    current_output, H, W, IC, 16, 64);
+        fixed_point_t* fire_squeeze_weights = stage_weights;
+        fixed_point_t* fire_expand1x1_weights = stage_weights + squeeze_weight_size;
+        fixed_point_t* fire_expand3x3_weights = stage_weights + squeeze_weight_size + expand1x1_weight_size;
 
-        // swap buffers
-        if (current_input == input) {
-            current_input = buffer1;
-            current_output = buffer2;
-        } else if (current_input == buffer1) {
-            current_input = buffer2;
-            current_output = buffer1;
-        } else {
-            current_input = buffer1;
-            current_output = buffer2;
+        // execute enabled module - use dimensions directly from controller
+        if (en_conv) {
+            conv3d(true, current_input, stage_weights, current_output, 
+                   H_in, W_in, IC_in, OC_out, K, stride, pad);
+            // swap buffers
+            fixed_point_t* temp = current_input;
+            current_input = current_output;
+            current_output = temp;
+        }
+        
+        if (en_maxpool) {
+            maxpool(true, current_input, current_output, 
+                    H_in, W_in, IC_in, K, stride);
+            // swap buffers
+            fixed_point_t* temp = current_input;
+            current_input = current_output;
+            current_output = temp;
+        }
+        
+        if (en_avgpool) {
+            avgpool(true, current_input, current_output, 
+                    H_in, W_in, IC_in, K, stride);
+            // swap buffers
+            fixed_point_t* temp = current_input;
+            current_input = current_output;
+            current_output = temp;
+        }
+        
+        if (en_relu) {
+            // relu is in-place, no buffer swap needed
+            relu(true, current_input, H_in, W_in, IC_in);
+        }
+        
+        if (en_fire) {
+            fire_module(true, current_input, fire_squeeze_weights,
+                        fire_expand1x1_weights, fire_expand3x3_weights,
+                        current_output, H_in, W_in, IC_in, squeeze_ch, expand_ch);
+            // swap buffers
+            fixed_point_t* temp = current_input;
+            current_input = current_output;
+            current_output = temp;
         }
     }
 
     // final classification (copy to output)
+    // after all stages, should be 1x1x10
     for (int i = 0; i < 10; i++) {
         #pragma HLS PIPELINE II=1
         output[i] = current_input[i];

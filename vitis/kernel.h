@@ -77,7 +77,19 @@ void controller(
     bool* en_maxpool,
     bool* en_avgpool,
     bool* en_relu,
-    bool* en_fire
+    bool* en_fire,
+    int* H_in,
+    int* W_in,
+    int* IC_in,
+    int* H_out,
+    int* W_out,
+    int* OC_out,
+    int* K,
+    int* stride,
+    int* pad,
+    int* squeeze_ch,
+    int* expand_ch,
+    int* weight_offset
 );
 
 void squeezenet_top(
