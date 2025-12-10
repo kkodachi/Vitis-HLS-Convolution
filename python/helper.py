@@ -5,7 +5,14 @@ from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
+
 def load_dataset(path='./data', batch_size=64):
+  """
+  Loads the CIFAR10 and upsamples for model. Performs data augmentation on training set.
+  
+  :param path: path to data or where it will download.
+  :param batch_size: number of examples in a batch
+  """
   print("Loading the CIFAR10 dataset")
 
   transform = transforms.Compose([
@@ -41,6 +48,11 @@ def load_dataset(path='./data', batch_size=64):
 
 
 def plot_metrics(metrics):
+  """
+  Graphs the accuracy and loss from training
+  
+  :param metrics: output of train_model()
+  """
   train_losses = metrics.get('train_loss',None)
   test_losses = metrics.get('test_loss',None)
   train_accs = metrics.get('train_acc',None)
@@ -50,7 +62,7 @@ def plot_metrics(metrics):
 
   plt.figure(figsize=(12, 5))
 
-  # Loss Graph
+  # loss Graph
   plt.subplot(1, 2, 1)
   if train_losses:
     plt.plot(epochs, train_losses, label='Train Loss', marker='o')
@@ -62,7 +74,7 @@ def plot_metrics(metrics):
   plt.legend()
   plt.grid(True, linestyle='--', alpha=0.6)
 
-  # Accuracy Graph
+  # accuracy Graph
   plt.subplot(1, 2, 2)
   if train_accs:
     plt.plot(epochs, train_accs, label='Train Accuracy', marker='o')
@@ -78,6 +90,21 @@ def plot_metrics(metrics):
   plt.show()
 
 def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu',epochs=10,lr=1e-3,weight_decay=1e-3,name="name",save=False):
+  """
+  Main training loop using CrossEntropyLoss and Adam Optimizer
+  
+  :param model: SqueezeNetCIFAR10
+  :param train_loader: output of load_dataset()
+  :param test_loader: output of load_dataset()
+  :param train: boolean to train
+  :param test: boolean to test
+  :param device: device to run on
+  :param epochs: total number of epochs
+  :param lr: learning rate
+  :param weight_decay: weight decay for Adam
+  :param name: name of file to save to (don't need .pth)
+  :param save: boolean to save highest accuracy
+  """
   model.to(device)
   metrics = {
         "train_loss": [],
@@ -115,8 +142,6 @@ def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu'
         total_examples += labels.size(0) # update count for this epoch with batch size
         correct += pred_ind.eq(labels).sum().item() # return count of correct predictions
 
-      # scheduler.step() 
-    #   train_loss /= len(train_loader) # get average per batch
       train_loss /= total_examples # get average per example
       train_acc = 100.0 * correct / total_examples
 
@@ -155,6 +180,13 @@ def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu'
   return metrics
 
 def evaluate(model, test_loader,device='cpu'):
+  """
+  Function to evaluate FP32 model
+  
+  :param model: SqueezeNetCIFAR10
+  :param test_loader: output of load_dataset()
+  :param device: device to run on
+  """
   model.eval()
   model.to(device)
   correct, total = 0, 0
@@ -171,10 +203,15 @@ def evaluate(model, test_loader,device='cpu'):
   acc = 100.0 * correct / total
   return acc
 
-def verify_quantized_model(model, test_loader, device, total_bits=8, int_bits=4):
+def verify_quantized_model(model, test_loader, device = 'cpu', total_bits=8, int_bits=4):
     """
-    Verify that using quantized weights gives expected accuracy.
-    This simulates what will happen in HLS.
+    Verify that using quantized weights gives expected accuracy. Simulates what will happen in Vitis HLS.
+    
+    :param model: SqueezeNetCIFAR10 model
+    :param test_loader: output of load_dataset()
+    :param device: device to run on
+    :param total_bits: total number of bits for fixed point
+    :param int_bits: number of integer bits in fixed point
     """
     model.eval()
     frac_bits = total_bits - int_bits
@@ -182,7 +219,7 @@ def verify_quantized_model(model, test_loader, device, total_bits=8, int_bits=4)
     qmin = -2 ** (int_bits - 1)
     qmax = (2 ** (int_bits - 1)) - 1
     
-    # Create a copy with frozen quantized weights
+    # create a copy with frozen quantized weights
     quantized_state = {}
     for name, param in model.state_dict().items():
         if param.dtype.is_floating_point and 'weight' in name:
@@ -192,21 +229,19 @@ def verify_quantized_model(model, test_loader, device, total_bits=8, int_bits=4)
         else:
             quantized_state[name] = param
     
-    # Load quantized weights
+    # load quantized weights
     model.load_state_dict(quantized_state)
     model.to(device)
     
-    # Evaluate
     correct = 0
     total = 0
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
-            output = model(data, epoch=None, inference=True)  # Full quantization
+            output = model(data, epoch=None, inference=True)
             _, predicted = output.max(1)
             total += target.size(0)
             correct += predicted.eq(target).sum().item()
     
     accuracy = 100. * correct / total
-    print(f"Accuracy with frozen quantized weights: {accuracy:.2f}%")
     return accuracy
