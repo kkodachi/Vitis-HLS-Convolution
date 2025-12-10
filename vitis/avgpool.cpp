@@ -60,13 +60,13 @@ void avgpool(
                 }
             }
 
+            CH_LOOP:
             for (int c = 0; c < IC; c++) {
-                #pragma HLS PIPELINE II=1
-
                 accum_t sum = 0;
 
-                // sum over the K*K elements for this channel
+                SUM_LOOP:
                 for (int i = 0; i < K * K; i++) {
+                    #pragma HLS PIPELINE II=1
                     int local_idx = c * K * K + i;
                     sum += window[local_idx];
                 }
@@ -81,3 +81,6 @@ void avgpool(
         }
     }
 }
+
+
+

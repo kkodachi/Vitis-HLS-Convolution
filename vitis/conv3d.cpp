@@ -111,16 +111,14 @@ void conv3d(
             for (int h=0;h<H_OUT;h++){
                 W_OUT_LOOP:
                 for (int w=0;w<W_OUT;w++){
-                    #pragma HLS PIPELINE II=1
-
+                    
                     accum_t sum = 0;
 
                     KH_LOOP:
                     for (int kh = 0; kh < K; kh++) {
-                        #pragma HLS UNROLL
                         KW_LOOP:
                         for (int kw = 0; kw < K; kw++) {
-                            #pragma HLS UNROLL
+                            #pragma HLS PIPELINE II=1
                             int h_in = h * stride + kh;
                             int w_in = w * stride + kw;
 
@@ -147,3 +145,6 @@ void conv3d(
         }
     }
 }
+
+
+

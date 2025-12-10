@@ -62,12 +62,12 @@ void maxpool(
 
             CH_LOOP:
             for (int c = 0; c < IC; c++) {
-                #pragma HLS PIPELINE II=1
-
                 // init to first element
                 fixed_point_t cur_max = window[c * K * K];
 
+                MAX_LOOP:
                 for (int i = 1; i < K * K; i++) {
+                    #pragma HLS PIPELINE II=1
                     int local_idx = c * K * K + i;
                     if (window[local_idx] > cur_max)
                         cur_max = window[local_idx];
@@ -81,3 +81,6 @@ void maxpool(
         }
     }
 }
+
+
+
