@@ -254,7 +254,7 @@ int main(){
     for (int i = 0; i < H * W * IC; i++) {
         // int steps = std::rand() % 65536;  // 0 to 65535 possible steps
         // input[i] = -32.0f + 0.0009765625f * steps; // 2^-10
-        int steps = std::rand() % 256;  // 8-bit range â†' 0 to 255
+        int steps = std::rand() % 256;  // 8-bit range → 0 to 255
         input[i] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
     }
 
@@ -296,56 +296,56 @@ int main(){
     compare(conv_golden, conv_out, H, W, OC); // compare outputs
 
     // MAXPOOL TEST
-//    maxpool_golden(input, mpool_golden, H, W, IC, K, S);
-//    maxpool(true, input, mpool_out, H, W, IC, K, S);
-//    std::cout << "Comparing Max Pool results" << std::endl;
-//    compare(mpool_golden, mpool_out, H, W, OC);
+    maxpool_golden(input, mpool_golden, H, W, IC, K, S);
+    maxpool(true, input, mpool_out, H, W, IC, K, S);
+    std::cout << "Comparing Max Pool results" << std::endl;
+    compare(mpool_golden, mpool_out, H, W, IC);
 
     // AVGPOOL TEST
-//    avgpool_golden(input, apool_golden, H, W, IC, K, S);
-//    avgpool(true, input, apool_out, H, W, IC, K, S);
-//    std::cout << "Comparing Avg Pool results" << std::endl;
-//    compare(apool_golden, apool_out, H, W, OC);
+    avgpool_golden(input, apool_golden, H, W, IC, K, S);
+    avgpool(true, input, apool_out, H, W, IC, K, S);
+    std::cout << "Comparing Avg Pool results" << std::endl;
+    compare(apool_golden, apool_out, H, W, IC);
 
     // RELU TEST
-//    static fixed_point_t input2[MAX_H * MAX_W * MAX_IC];
-//    // copy input to second input, relu modifies input
-//    for (int i = 0; i < H * W * IC; i++) {
-//        input2[i] = input[i];
-//    }
-//
-//    relu_golden(input,H,W,IC);
-//    relu(true, input2,H,W,IC);
-//    std::cout << "Comparing ReLU results" << std::endl;
-//    compare(input, input2, H, W, OC);
+    static fixed_point_t input2[MAX_H * MAX_W * MAX_IC];
+    // copy input to second input, relu modifies input
+    for (int i = 0; i < H * W * IC; i++) {
+        input2[i] = input[i];
+    }
+
+    relu_golden(input,H,W,IC);
+    relu(true, input2,H,W,IC);
+    std::cout << "Comparing ReLU results" << std::endl;
+    compare(input, input2, H, W, IC);
 
     // FIRE MODULE TEST
-//    int squeeze_ch = 16;
-//    int expand_ch = 64;
-//    static fixed_point_t squeeze_weights[1 * 1 * MAX_IC * MAX_OC];
-//    static fixed_point_t expand1x1_weights[1 * 1 * MAX_IC * MAX_OC];
-//    static fixed_point_t expand3x3_weights[MAX_K * MAX_K * MAX_IC * MAX_OC];
-//
-//    // fill fire module weights with random values
-//    for (int i = 0; i < 1 * 1 * IC * squeeze_ch; i++) {
-//        int steps = std::rand() % 256;
-//        squeeze_weights[i] = -8.0f + 0.0625f * steps;
-//    }
-//    for (int i = 0; i < 1 * 1 * squeeze_ch * expand_ch; i++) {
-//        int steps = std::rand() % 256;
-//        expand1x1_weights[i] = -8.0f + 0.0625f * steps;
-//    }
-//    for (int i = 0; i < 3 * 3 * squeeze_ch * expand_ch; i++) {
-//        int steps = std::rand() % 256;
-//        expand3x3_weights[i] = -8.0f + 0.0625f * steps;
-//    }
-//
-//    fire_module_golden(input, squeeze_weights, expand1x1_weights, expand3x3_weights, 
-//                       fire_golden, H, W, IC, squeeze_ch, expand_ch);
-//    fire_module(true, input, squeeze_weights, expand1x1_weights, expand3x3_weights, 
-//                fire_out, H, W, IC, squeeze_ch, expand_ch);
-//    std::cout << "Comparing Fire Module results" << std::endl;
-//    compare(fire_golden, fire_out, H, W, expand_ch * 2);
+    int squeeze_ch = 16;
+    int expand_ch = 64;
+    static fixed_point_t squeeze_weights[1 * 1 * MAX_IC * MAX_OC];
+    static fixed_point_t expand1x1_weights[1 * 1 * MAX_IC * MAX_OC];
+    static fixed_point_t expand3x3_weights[MAX_K * MAX_K * MAX_IC * MAX_OC];
+
+    // fill fire module weights with random values
+    for (int i = 0; i < 1 * 1 * IC * squeeze_ch; i++) {
+        int steps = std::rand() % 256;
+        squeeze_weights[i] = -8.0f + 0.0625f * steps;
+    }
+    for (int i = 0; i < 1 * 1 * squeeze_ch * expand_ch; i++) {
+        int steps = std::rand() % 256;
+        expand1x1_weights[i] = -8.0f + 0.0625f * steps;
+    }
+    for (int i = 0; i < 3 * 3 * squeeze_ch * expand_ch; i++) {
+        int steps = std::rand() % 256;
+        expand3x3_weights[i] = -8.0f + 0.0625f * steps;
+    }
+
+    fire_module_golden(input, squeeze_weights, expand1x1_weights, expand3x3_weights, 
+                       fire_golden, H, W, IC, squeeze_ch, expand_ch);
+    fire_module(true, input, squeeze_weights, expand1x1_weights, expand3x3_weights, 
+                fire_out, H, W, IC, squeeze_ch, expand_ch);
+    std::cout << "Comparing Fire Module results" << std::endl;
+    compare(fire_golden, fire_out, H, W, expand_ch * 2);
 
     // FULL SQUEEZENET PIPELINE TEST
     std::cout << "\n=== Testing Full SqueezeNet Pipeline ===" << std::endl;
