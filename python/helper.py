@@ -77,7 +77,7 @@ def plot_metrics(metrics):
   plt.tight_layout()
   plt.show()
 
-def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu',epochs=10,lr=1e-3,weight_decay=1e-3,name="name"):
+def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu',epochs=10,lr=1e-3,weight_decay=1e-3,name="name",save=False):
   model.to(device)
   metrics = {
         "train_loss": [],
@@ -143,7 +143,7 @@ def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu'
       test_loss /= total_examples
       test_acc = 100.0 * correct / total_examples
 
-      if test_acc > 75.0 and e > 3:
+      if save and test_acc > 75.0 and e > 3:
         fname = name + f"_{e}.pth"
         model.save_model(fname)
 
@@ -170,3 +170,43 @@ def evaluate(model, test_loader,device='cpu'):
 
   acc = 100.0 * correct / total
   return acc
+
+def verify_quantized_model(model, test_loader, device, total_bits=8, int_bits=4):
+    """
+    Verify that using quantized weights gives expected accuracy.
+    This simulates what will happen in HLS.
+    """
+    model.eval()
+    frac_bits = total_bits - int_bits
+    scale = 2 ** frac_bits
+    qmin = -2 ** (int_bits - 1)
+    qmax = (2 ** (int_bits - 1)) - 1
+    
+    # Create a copy with frozen quantized weights
+    quantized_state = {}
+    for name, param in model.state_dict().items():
+        if param.dtype.is_floating_point and 'weight' in name:
+            w = param.cpu()
+            w_int = torch.clamp(torch.round(w * scale), qmin * scale, qmax * scale)
+            quantized_state[name] = (w_int / scale).to(device)
+        else:
+            quantized_state[name] = param
+    
+    # Load quantized weights
+    model.load_state_dict(quantized_state)
+    model.to(device)
+    
+    # Evaluate
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data, epoch=None, inference=True)  # Full quantization
+            _, predicted = output.max(1)
+            total += target.size(0)
+            correct += predicted.eq(target).sum().item()
+    
+    accuracy = 100. * correct / total
+    print(f"Accuracy with frozen quantized weights: {accuracy:.2f}%")
+    return accuracy
