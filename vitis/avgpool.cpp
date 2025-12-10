@@ -14,6 +14,8 @@ void avgpool(
 {
     if (!enable) return;
 
+    #pragma HLS INLINE off
+
     #pragma HLS INTERFACE s_axilite port=enable
     #pragma HLS INTERFACE m_axi port=activations offset=slave bundle=gmem0 depth=524288
     #pragma HLS INTERFACE m_axi port=output      offset=slave bundle=gmem1 depth=524288
@@ -36,12 +38,16 @@ void avgpool(
     const int outW = (W - K) / stride + 1;
 
     fixed_point_t window[MAX_K * MAX_K * MAX_IC];
-    // #pragma HLS ARRAY_PARTITION variable=window complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=window cyclic factor=4 dim=1
 
     H_LOOP:
     for (int oh = 0; oh < outH; oh++){
+        #pragma HLS LOOP_TRIPCOUNT min=1 max=32
+        
         W_LOOP:
         for (int ow = 0; ow < outW; ow++){
+            #pragma HLS LOOP_TRIPCOUNT min=1 max=32
+            
             const int h0 = oh * stride;
             const int w0 = ow * stride;
 
@@ -50,6 +56,8 @@ void avgpool(
                 for (int kw = 0; kw < K; kw++) {
                     for (int c = 0; c < IC; c++) {
                         #pragma HLS PIPELINE II=1
+                        #pragma HLS LOOP_TRIPCOUNT min=3 max=512
+                        
                         int ih = h0 + kh;
                         int iw = w0 + kw;
 
@@ -66,11 +74,15 @@ void avgpool(
 
             CH_LOOP:
             for (int c = 0; c < IC; c++) {
+                #pragma HLS LOOP_TRIPCOUNT min=3 max=512
+                
                 accum_t sum = 0;
 
                 SUM_LOOP:
                 for (int i = 0; i < K * K; i++) {
                     #pragma HLS PIPELINE II=1
+                    #pragma HLS UNROLL factor=2
+                    
                     int local_idx = c * K * K + i;
                     sum += window[local_idx];
                 }

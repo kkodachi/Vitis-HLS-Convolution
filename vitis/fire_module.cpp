@@ -16,6 +16,8 @@ void fire_module(
 {
     if (!enable) return;
 
+    #pragma HLS INLINE off
+
     #pragma HLS INTERFACE s_axilite port=enable
     #pragma HLS INTERFACE m_axi port=input offset=slave bundle=gmem0 depth=262144
     #pragma HLS INTERFACE m_axi port=squeeze_weights offset=slave bundle=gmem1 depth=262144
@@ -30,8 +32,13 @@ void fire_module(
     #pragma HLS INTERFACE s_axilite port=return
 
     static fixed_point_t squeeze_out[MAX_H * MAX_W * MAX_IC];
+    #pragma HLS ARRAY_PARTITION variable=squeeze_out cyclic factor=8 dim=1
+    
     static fixed_point_t expand1x1_out[MAX_H * MAX_W * MAX_OC];
+    #pragma HLS ARRAY_PARTITION variable=expand1x1_out cyclic factor=8 dim=1
+    
     static fixed_point_t expand3x3_out[MAX_H * MAX_W * MAX_OC];
+    #pragma HLS ARRAY_PARTITION variable=expand3x3_out cyclic factor=8 dim=1
 
     // squeeze: 1x1 conv
     conv3d(true, (fixed_point_t*)input, (fixed_point_t*)squeeze_weights, 
@@ -52,12 +59,18 @@ void fire_module(
     // output channels = expand_ch + expand_ch = 2*expand_ch
     CONCAT_H:
     for (int h = 0; h < H; h++){
+        #pragma HLS LOOP_TRIPCOUNT min=4 max=32
+        
         CONCAT_W:
         for (int w = 0; w < W; w++){
+            #pragma HLS LOOP_TRIPCOUNT min=4 max=32
+            
             // first half: expand1x1
             CONCAT_C1:
             for (int c = 0; c < expand_ch; c++){
                 #pragma HLS PIPELINE II=1
+                #pragma HLS LOOP_TRIPCOUNT min=64 max=256
+                
                 int idx_in = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
                 int idx_out = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
                 output[idx_out] = expand1x1_out[idx_in];
@@ -66,6 +79,8 @@ void fire_module(
             CONCAT_C2:
             for (int c = 0; c < expand_ch; c++){
                 #pragma HLS PIPELINE II=1
+                #pragma HLS LOOP_TRIPCOUNT min=64 max=256
+                
                 int idx_in = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
                 int idx_out = h * (MAX_W * MAX_OC) + w * (MAX_OC) + expand_ch + c;
                 output[idx_out] = expand3x3_out[idx_in];
