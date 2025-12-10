@@ -77,7 +77,7 @@ def plot_metrics(metrics):
   plt.tight_layout()
   plt.show()
 
-def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu',epochs=10,lr=1e-3):
+def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu',epochs=10,lr=1e-3,weight_decay=1e-3,name="name"):
   model.to(device)
   metrics = {
         "train_loss": [],
@@ -87,7 +87,7 @@ def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu'
     }
 
   # TRAINING LOOP
-  optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
+  optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
   criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
   criterion_test = nn.CrossEntropyLoss()
@@ -120,11 +120,6 @@ def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu'
       train_loss /= total_examples # get average per example
       train_acc = 100.0 * correct / total_examples
 
-      if train_acc > 75:
-        name = f"squeezenet_qat{e}"
-        model.save_model(name)
-
-
       metrics["train_loss"].append(train_loss)
       metrics["train_acc"].append(train_acc)
 
@@ -147,6 +142,10 @@ def train_model(model,train_loader,test_loader,train=True,test=True,device='cpu'
 
       test_loss /= total_examples
       test_acc = 100.0 * correct / total_examples
+
+      if test_acc > 75.0 and e > 3:
+        fname = name + f"_{e}.pth"
+        model.save_model(fname)
 
       metrics["test_loss"].append(test_loss)
       metrics["test_acc"].append(test_acc)
