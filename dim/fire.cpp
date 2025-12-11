@@ -73,7 +73,7 @@ void expand1(
 
 void expand3(
     const fixed_point_t input[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_SC],
-    const fixed_point_t expand1x1_weights[3][3][MAX_FIRE_SC][MAX_FIRE_EC],
+    const fixed_point_t expand3x3_weights[3][3][MAX_FIRE_SC][MAX_FIRE_EC],
     fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
     int H, int W, int SC, int EC, int offset
 )
@@ -82,9 +82,9 @@ void expand3(
     fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
     fixed_point_t weights_local[3][3];
 
-    const int P = 1;
     const int K = 3;
     const int S = 1;
+    const int P = 1;
 
     int H_OUT = (H + 2*P - K)/S + 1;
     int W_OUT = (W + 2*P - K)/S + 1;
@@ -94,6 +94,7 @@ void expand3(
         INIT_OUTPUT:
         for (int h = 0; h < H_OUT; h++) {
             for (int w = 0; w < W_OUT; w++) {
+                #pragma HLS PIPELINE II=1
                 output_local[h][w] = 0;
             }
         }

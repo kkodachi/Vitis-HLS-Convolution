@@ -1,15 +1,6 @@
 #include "config.h"
 // #include <stddef.h>
 
-
-#define MAX_H   32      // largest CIFAR-10 input height
-#define MAX_W   32      // largest CIFAR-10 input width
-
-#define MAX_IC  512     // max input channels
-#define MAX_OC  512     // max output channels
-
-#define MAX_K   3       // largest kernel in squeezenet
-
 // PARAMETERS FOR conv3d()
 #define MAX_CONV_H 224 // max height of input to conv kernel (conv1)
 #define MAX_CONV_W 224 // max width of input to conv kernel (conv1)
@@ -18,27 +9,38 @@
 #define MAX_CONV_K 7 // max kernel size for conv kernel (conv1)
 
 // parameters for fire()
-#define MAX_FIRE_H 56 // max height of input to fire module
-#define MAX_FIRE_W 56 // max width of input to fire module
+// #define MAX_FIRE_H 56 // max height of input to fire module
+// #define MAX_FIRE_W 56 // max width of input to fire module
+#define MAX_FIRE_H 112
+#define MAX_FIRE_W 112
 #define MAX_FIRE_IC 512 // max input channels
 #define MAX_FIRE_SC 64 // max squeeze channels
 #define MAX_FIRE_EC 256 // max expand channels
+
+// parameters for maxpool()
+
+// parameters for avgpool()
+#define AVGPOOL_H 14
+#define AVGPOOL_W 14
+#define AVGPOOL_C 10
+#define NUM_CLASSES 10
 
 // TODO: add top function to call entire model
 
 void conv3d(
     bool enable,
-    fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
-    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
+    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC],
+    fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC],
+    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
 
     int H,      // input height
     int W,      // input width
     int IC,     // input channels
     int OC,     // output channels
     int K,      // kernel size
-    int S, // stride
-    int P     // padding
+    int S,      // stride
+    int P       // padding
 );
 
 void fire(
@@ -57,22 +59,18 @@ void fire(
 
 void maxpool(
     bool enable,
-    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t output[MAX_H * MAX_W * MAX_IC],
+    const fixed_point_t activations[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
     int H,      // input height
     int W,      // input width
-    int IC,     // input channels
-    int K,      // kernel size
-    int S  // stride
+    int IC     // input channels
 );
 
 void avgpool(
     bool enable,
-    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t output[MAX_H * MAX_W * MAX_IC],
+    const fixed_point_t activations[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C],
+    fixed_point_t output[AVGPOOL_C],
     int H,      // input height
     int W,      // input width
-    int IC,     // input channels
-    int K,      // kernel size
-    int stride  // stride
+    int IC     // input channels
 );

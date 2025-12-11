@@ -37,7 +37,8 @@ void conv3d(
     bool enable,
     fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC],
     fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC],
-    fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
 
     int H,      // input height
     int W,      // input width
@@ -48,6 +49,7 @@ void conv3d(
     int P       // padding
 )
 {
+    if (!enable) return;
     #pragma HLS INTERFACE mode=s_axilite port=H
     #pragma HLS INTERFACE mode=s_axilite port=W
     #pragma HLS INTERFACE mode=s_axilite port=IC
@@ -60,11 +62,12 @@ void conv3d(
     fixed_point_t local_weights[MAX_CONV_K][MAX_CONV_K];
 
     fixed_point_t local_activations[MAX_CONV_H + 2*MAX_CONV_K][MAX_CONV_W + 2*MAX_CONV_K];
+    
+    // fixed_point_t local_output[MAX_CONV_H][MAX_CONV_W];
+    fixed_point_t local_output[MAX_FIRE_H][MAX_FIRE_W];
 
-    fixed_point_t local_output[MAX_CONV_H][MAX_CONV_W];
-
-    int H_OUT = (H + 2*pad - K)/stride + 1;
-    int W_OUT = (W + 2*pad - K)/stride + 1;
+    int H_OUT = (H + 2*P - K)/S + 1;
+    int W_OUT = (W + 2*P - K)/S + 1;
 
     for (int oc=0;oc<OC;oc++){
 
