@@ -13,9 +13,9 @@ void squeezenet_top(
     #pragma HLS INTERFACE s_axilite port=num_stages
     #pragma HLS INTERFACE s_axilite port=return
 
-    // intermediate buffers
-    static fixed_point_t buffer1[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t buffer2[MAX_H * MAX_W * MAX_OC];
+    // intermediate buffers - remove static to avoid stack overflow in testbench
+    fixed_point_t buffer1[MAX_H * MAX_W * MAX_OC];
+    fixed_point_t buffer2[MAX_H * MAX_W * MAX_OC];
 
     // enable signals
     bool en_conv, en_maxpool, en_avgpool, en_relu, en_fire;
@@ -105,3 +105,6 @@ void squeezenet_top(
         output[i] = current_input[i];
     }
 }
+
+
+

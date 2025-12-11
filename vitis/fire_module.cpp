@@ -31,14 +31,33 @@ void fire_module(
     #pragma HLS INTERFACE s_axilite port=expand_ch
     #pragma HLS INTERFACE s_axilite port=return
 
-    static fixed_point_t squeeze_out[MAX_H * MAX_W * MAX_IC];
+    fixed_point_t squeeze_out[MAX_H * MAX_W * MAX_IC];
     #pragma HLS ARRAY_PARTITION variable=squeeze_out cyclic factor=8 dim=1
     
-    static fixed_point_t expand1x1_out[MAX_H * MAX_W * MAX_OC];
+    fixed_point_t expand1x1_out[MAX_H * MAX_W * MAX_OC];
     #pragma HLS ARRAY_PARTITION variable=expand1x1_out cyclic factor=8 dim=1
     
-    static fixed_point_t expand3x3_out[MAX_H * MAX_W * MAX_OC];
+    fixed_point_t expand3x3_out[MAX_H * MAX_W * MAX_OC];
     #pragma HLS ARRAY_PARTITION variable=expand3x3_out cyclic factor=8 dim=1
+
+    // Initialize arrays - use separate non-overlapping loops
+    INIT_SQUEEZE:
+    for (int i = 0; i < MAX_H * MAX_W * MAX_IC; i++) {
+        #pragma HLS PIPELINE II=1
+        squeeze_out[i] = 0;
+    }
+    
+    INIT_EXPAND1X1:
+    for (int i = 0; i < MAX_H * MAX_W * MAX_OC; i++) {
+        #pragma HLS PIPELINE II=1
+        expand1x1_out[i] = 0;
+    }
+    
+    INIT_EXPAND3X3:
+    for (int i = 0; i < MAX_H * MAX_W * MAX_OC; i++) {
+        #pragma HLS PIPELINE II=1
+        expand3x3_out[i] = 0;
+    }
 
     // squeeze: 1x1 conv
     conv3d(true, (fixed_point_t*)input, (fixed_point_t*)squeeze_weights, 
@@ -91,3 +110,6 @@ void fire_module(
     // relu on concatenated output
     relu(true, output, H, W, expand_ch * 2);
 }
+
+
+

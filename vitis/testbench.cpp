@@ -55,7 +55,7 @@ void conv3d_golden(
                             if (in_h < 0 || in_h >= H || in_w < 0 || in_w >= W)
                                 continue;
                             int wt_idx =
-                                kh * (MAX_K * MAX_IC * MAX_OC)
+                                kh * (K * MAX_IC * MAX_OC)
                               + kw * (MAX_IC * MAX_OC)
                               + ic * (MAX_OC)
                               + oc;
@@ -254,7 +254,7 @@ int main(){
     for (int i = 0; i < H * W * IC; i++) {
         // int steps = std::rand() % 65536;  // 0 to 65535 possible steps
         // input[i] = -32.0f + 0.0009765625f * steps; // 2^-10
-        int steps = std::rand() % 256;  // 8-bit range â†' 0 to 255
+        int steps = std::rand() % 256;  // 8-bit range Ã¢â€ ' 0 to 255
         input[i] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
     }
 
@@ -395,3 +395,5 @@ int main(){
     std::cout << "Note: With random weights, output values are meaningless." << std::endl;
     std::cout << "Real functional verification happens in Task 4 with trained weights." << std::endl;
 }
+
+
