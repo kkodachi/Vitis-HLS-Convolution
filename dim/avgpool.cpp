@@ -21,7 +21,7 @@ void avgpool(
             KW_LOOP:
             for (int w = 0; w < W; w++) {
                 #pragma HLS PIPELINE II=1
-                sum += activations[h][w];
+                sum += activations[h][w][ic];
             }
         }
         output[ic] = sum / (H * W);

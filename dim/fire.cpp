@@ -104,7 +104,7 @@ void expand3(
             for (int i = 0; i < K; i++){
                 for (int j = 0; j < K; j++){
                     #pragma HLS PIPELINE II=1
-                    weights_local[i][j] = expand1x1_weights[i][j][sc][ec];
+                    weights_local[i][j] = expand3x3_weights[i][j][sc][ec];
                 }
             }
 

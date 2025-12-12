@@ -3,6 +3,8 @@
 
 #include <iostream>
 #include <cstdlib>
+#include <assert.h>
+#include <cmath>
 
 void avgpool_golden(
     bool enable,
@@ -19,8 +21,8 @@ void avgpool_golden(
         accum_t sum = 0;
 
         for (int h = 0; h < H; h++) {
-            for (int w = 0; w < w; w++) {
-                sum += activations[w][w];
+            for (int w = 0; w < W; w++) {
+                sum += activations[h][w][ic];
             }
         }
         output[ic] = sum / (H * W);
@@ -59,7 +61,7 @@ void maxpool_golden(
                             max_val = v;
                     }
                 }
-                activations[oh][ow][ic] = max_val;
+                output[oh][ow][ic] = max_val;
             }
         }
     }
@@ -70,7 +72,8 @@ void conv3d_golden(
     bool enable,
     fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC],
     fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC],
-    fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
 
     int H,      // input height
     int W,      // input width
@@ -84,6 +87,11 @@ void conv3d_golden(
     if (!enable) return;
     int H_OUT = (H + 2*P - K) / S + 1;
     int W_OUT = (W + 2*P - K) / S + 1;
+
+    assert(H_OUT <= MAX_FIRE_H);
+    assert(W_OUT <= MAX_FIRE_W);
+    assert(OC <= MAX_FIRE_IC);
+    assert(IC <= MAX_FIRE_IC);
 
     for (int oc = 0; oc < OC; oc++) {
         for (int oh = 0; oh < H_OUT; oh++) {
@@ -169,30 +177,60 @@ void expand3_golden(
     int H_OUT = (H + 2*P - K)/S + 1;
     int W_OUT = (W + 2*P - K)/S + 1;
 
-    for (int ec = 0; ec < EC; ec++){
-        for (int sc = 0; sc < SC; sc++){
-            for (int h = 0; h < H_OUT; h++) {
-                for (int w = 0; w < W_OUT; w++) {
-                    accum_t sum = 0;
+    for (int ec = 0; ec < EC; ec++) {
+        for (int h = 0; h < H_OUT; h++) {
+            for (int w = 0; w < W_OUT; w++) {
+
+                accum_t sum = 0;      // must accumulate across SC
+
+                for (int sc = 0; sc < SC; sc++) {
                     for (int kh = 0; kh < K; kh++) {
                         for (int kw = 0; kw < K; kw++) {
                             int h_in = h * S + kh - P;
                             int w_in = w * S + kw - P;
 
-                            // zero padding
                             fixed_point_t val = 0;
-                            if (h_in >= 0 && h_in < H && w_in >= 0 && w_in < W) {
+                            if (h_in >= 0 && h_in < H &&
+                                w_in >= 0 && w_in < W)
+                            {
                                 val = input[h_in][w_in][sc];
                             }
 
                             sum += val * expand3x3_weights[kh][kw][sc][ec];
                         }
                     }
-                    output[h][w][offset+ec] = ((fixed_point_t)sum > 0) ? (fixed_point_t)sum : 0;
                 }
+
+                fixed_point_t relu = (sum > 0) ? (fixed_point_t)sum : 0;
+                output[h][w][offset + ec] = relu;
             }
         }
     }
+
+    // for (int ec = 0; ec < EC; ec++){
+    //     for (int sc = 0; sc < SC; sc++){
+    //         for (int h = 0; h < H_OUT; h++) {
+    //             for (int w = 0; w < W_OUT; w++) {
+    //                 accum_t sum = 0;
+    //                 for (int kh = 0; kh < K; kh++) {
+    //                     for (int kw = 0; kw < K; kw++) {
+    //                         int h_in = h * S + kh - P;
+    //                         int w_in = w * S + kw - P;
+
+    //                         // zero padding
+    //                         fixed_point_t val = 0;
+    //                         if (h_in >= 0 && h_in < H && w_in >= 0 && w_in < W) {
+    //                             val = input[h_in][w_in][sc];
+    //                         }
+
+    //                         sum += val * expand3x3_weights[kh][kw][sc][ec];
+    //                     }
+    //                 }
+    //                 output[h][w][offset+ec] = ((fixed_point_t)sum > 0) ? (fixed_point_t)sum : 0;
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 void fire_golden(
@@ -227,6 +265,14 @@ void fire_golden(
     expand3_golden(squeeze_output,expand3x3_weights,output,H,W,SC,EC,EC);
 }
 
+// bool areFloatsEqual(float a, float b, float epsilon = 1e-6f) {
+//     return std::fabs(a - b) < epsilon;
+// }
+bool areFloatsEqual(float a, float b, float epsilon = 1e-1f) {
+    float diff = std::fabs(a - b);
+    float maxVal = std::max(std::fabs(a), std::fabs(b));
+    return diff <= epsilon * maxVal;
+}
 
 int main(){
     // Parameters below test conv1 -> maxpool1 -> fire2 in squeezenet.ipynb
@@ -243,19 +289,23 @@ int main(){
     int conv_S = 2;
     int conv_P = 3;
 
-    const int CONV_H_OUT = (conv_H + 2*conv_P - conv_K)/conv_S + 1;
-    const int CONV_W_OUT = (conv_W + 2*conv_P - conv_K)/conv_S + 1;
+    const int CONV_H_OUT = (conv_H + 2*conv_P - conv_K)/conv_S + 1; // 112
+    const int CONV_W_OUT = (conv_W + 2*conv_P - conv_K)/conv_S + 1; // 112
 
-    fixed_point_t conv_in[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC];
-    fixed_point_t conv_w[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC];
+    // std::cout << "CONV_H_OUT: " << CONV_H_OUT << " CONV_W_OUT: " << CONV_W_OUT << std::endl; 
 
-    // fixed_point_t conv_out[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC];
-    // fixed_point_t conv_golden[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC];
+    // fixed_point_t conv_in[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC];
+    // fixed_point_t conv_w[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC];
+    // // fixed_point_t conv_out[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC];
+    // // fixed_point_t conv_golden[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC];
+    // fixed_point_t conv_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    // fixed_point_t conv_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
 
-    fixed_point_t conv_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
-    fixed_point_t conv_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    auto conv_in = new fixed_point_t[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC];
+    auto conv_w = new fixed_point_t[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC];
+    auto conv_out = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    auto conv_golden = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
     
-
     // randomize input
     for (int h = 0; h < conv_H; h++){
         for (int w = 0; w < conv_W; w++){
@@ -272,7 +322,7 @@ int main(){
             for (int ic = 0; ic < conv_IC; ic++){
                 for (int oc = 0; oc < conv_OC; oc++){
                     int steps = std::rand() % 256;  // 8-bit range 0 to 255
-                    conv_in[kh][kw][ic][oc] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+                    conv_w[kh][kw][ic][oc] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
                 }
             }
         }
@@ -301,14 +351,22 @@ int main(){
     else {
         std::cout << "conv3d() matches golden" << std::endl;
     }
+
+    delete[] conv_in;
+    delete[] conv_w;
+    delete[] conv_golden;
     // CONV TEST END
 
     // MAXPOOL TEST START
-    fixed_point_t mp_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
-    fixed_point_t mp_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    // fixed_point_t mp_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    // fixed_point_t mp_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    auto mp_out = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    auto mp_golden = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
 
     maxpool(enable,conv_out,mp_out,CONV_H_OUT,CONV_W_OUT,conv_OC);
     maxpool_golden(enable,conv_out,mp_golden,CONV_H_OUT,CONV_W_OUT,conv_OC);
+
+    delete[] conv_out;
 
     const int MP_K = 3;
     const int MP_S = 2;
@@ -336,6 +394,8 @@ int main(){
     else {
         std::cout << "maxpool() matches golden" << std::endl;
     }
+
+    delete[] mp_golden;
     // MAXPOOL TEST END
 
     // FIRE TEST START
@@ -348,12 +408,17 @@ int main(){
     const int FIRE_OW = MP_W_OUT;
     const int FIRE_OC = 2 * FIRE_EC;
 
-    fixed_point_t squeeze_weights[MAX_FIRE_IC][MAX_FIRE_SC];
-    fixed_point_t expand1x1_weights[MAX_FIRE_SC][MAX_FIRE_EC];
-    fixed_point_t expand3x3_weights[3][3][MAX_FIRE_SC][MAX_FIRE_EC];
+    // fixed_point_t squeeze_weights[MAX_FIRE_IC][MAX_FIRE_SC];
+    // fixed_point_t expand1x1_weights[MAX_FIRE_SC][MAX_FIRE_EC];
+    // fixed_point_t expand3x3_weights[3][3][MAX_FIRE_SC][MAX_FIRE_EC];
+    // fixed_point_t fire_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    // fixed_point_t f_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
 
-    fixed_point_t fire_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
-    fixed_point_t f_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    auto squeeze_weights = new fixed_point_t[MAX_FIRE_IC][MAX_FIRE_SC];
+    auto expand1x1_weights = new fixed_point_t[MAX_FIRE_SC][MAX_FIRE_EC];
+    auto expand3x3_weights = new fixed_point_t[3][3][MAX_FIRE_SC][MAX_FIRE_EC];
+    auto fire_out = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    auto f_golden = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
 
     // randomize squeeze weights
     for (int ic = 0; ic < FIRE_IC; ic++){
@@ -367,11 +432,11 @@ int main(){
     for (int sc = 0; sc < FIRE_SC; sc++){
         for (int ec = 0; ec < FIRE_EC; ec++){
             int steps = std::rand() % 256;  // 8-bit range 0 to 255
-            squeeze_weights[sc][ec] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+            expand1x1_weights[sc][ec] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
             for (int i = 0; i < 3; i++){
                 for (int j = 0; j < 3; j++){
                     steps = std::rand() % 256;  // 8-bit range 0 to 255
-                    squeeze_weights[i][j][sc][ec] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+                    expand3x3_weights[i][j][sc][ec] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
                 }
             }
         }
@@ -380,11 +445,17 @@ int main(){
     fire(enable,mp_out,squeeze_weights,expand1x1_weights,expand3x3_weights,fire_out,MP_H_OUT,MP_W_OUT,FIRE_IC,FIRE_SC,FIRE_EC);
     fire_golden(enable,mp_out,squeeze_weights,expand1x1_weights,expand3x3_weights,f_golden,MP_H_OUT,MP_W_OUT,FIRE_IC,FIRE_SC,FIRE_EC);
 
+    delete[] mp_out;
+    delete[] squeeze_weights;
+    delete[] expand1x1_weights;
+    delete[] expand3x3_weights;
+
     std::cout << "Comparing fire with golden" << std::endl;
-    int count = 0;
+    count = 0;
     for (int h = 0; h < FIRE_OH; h++){
         for (int w = 0; w < FIRE_OW; w++){
             for (int oc = 0; oc < FIRE_OC; oc++){
+                // if (areFloatsEqual(fire_out[h][w][oc],f_golden[h][w][oc])){
                 if (fire_out[h][w][oc] != f_golden[h][w][oc]){
                     if (count < 5){
                         std::cout << "Mismatch at h, w, oc: " << h << " " << w << " " << oc << ", kernel: " << fire_out[h][w][oc] << " golden: " << f_golden[h][w][oc] << std::endl;
@@ -400,8 +471,10 @@ int main(){
     else {
         std::cout << "fire() matches golden" << std::endl;
     }
+    delete[] fire_out;
+    delete[] f_golden;
 
-    // FIRE TEST END
+    // // FIRE TEST END
 
     // AVGPOOL TEST START
     // test avgpool for final output
@@ -421,7 +494,7 @@ int main(){
     }
 
     avgpool(enable,ap_in,ap_out,AVGPOOL_H,AVGPOOL_W,AVGPOOL_C);
-    avgpool_golden(enable,ap_in,avgpool_golden,AVGPOOL_H,AVGPOOL_W,AVGPOOL_C);
+    avgpool_golden(enable,ap_in,ap_golden,AVGPOOL_H,AVGPOOL_W,AVGPOOL_C);
 
     std::cout << "Comparing avgpool with golden" << std::endl;
     count = 0;

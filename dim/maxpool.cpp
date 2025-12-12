@@ -49,7 +49,7 @@ void maxpool(
         for (int oh = 0; oh < H_OUT; oh++){
             for (int ow = 0; ow < W_OUT; ow++){
                 #pragma HLS PIPELINE II=1
-                activations[oh][ow][ic] = output_local[oh][ow];
+                output[oh][ow][ic] = output_local[oh][ow];
             }
         }
     }
