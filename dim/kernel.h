@@ -1,5 +1,4 @@
 #include "config.h"
-// #include <stddef.h>
 
 // PARAMETERS FOR conv3d()
 #define MAX_CONV_H 224 // max height of input to conv kernel (conv1)
@@ -17,15 +16,18 @@
 #define MAX_FIRE_SC 64 // max squeeze channels
 #define MAX_FIRE_EC 256 // max expand channels
 
-// parameters for maxpool()
-
 // parameters for avgpool()
 #define AVGPOOL_H 14
 #define AVGPOOL_W 14
 #define AVGPOOL_C 10
 #define NUM_CLASSES 10
 
-// TODO: add top function to call entire model
+// parameters for top module and controller
+#define MODULES 4
+#define CONV_IND 0
+#define MAXPOOL_IND 1
+#define FIRE_IND 2
+#define AVGPOOL_IND 3
 
 void conv3d(
     bool enable,
@@ -73,4 +75,23 @@ void avgpool(
     int H,      // input height
     int W,      // input width
     int IC     // input channels
+);
+
+struct Args {
+    int IH;
+    int IW;
+    int IC;
+    // padding, stride, input/output/weight arrays etc
+    // just have a datamember for every necessary parameter across all layers and only use necessary ones for each layer
+    // for example avgpool doesn't need much so just ignore the other parameters
+
+    // Args(int ih, int iw, int ic)
+    //     : IH(ih), IW(iw), IC(ic) {}
+    
+};
+
+void controller(
+    bool enables[],
+    int layer,
+    Args layers[]
 );
