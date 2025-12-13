@@ -30,7 +30,7 @@ void squeeze(
                     sum += input_local[ic] * weights[ic][sc];
                 }
 
-                squeeze_output[h][w][sc] = (sum > 0) ? (fixed_point_t)sum : 0;
+                squeeze_output[h][w][sc] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
             }
         }
     }
@@ -65,7 +65,7 @@ void expand1(
                     sum += input_local[sc] * expand1x1_weights[sc][ec];
                 }
 
-                output[h][w][ec] = (sum > 0) ? (fixed_point_t)sum : 0;
+                output[h][w][ec] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
             }
         }
     }
@@ -151,7 +151,7 @@ void expand3(
         for (int h = 0; h < H_OUT; h++) {
             for (int w = 0; w < W_OUT; w++) {
                 #pragma HLS PIPELINE II=1
-                output[h][w][offset + ec] = (output_local[h][w] > 0) ? output_local[h][w] : 0;
+                output[h][w][offset + ec] = (output_local[h][w] > 0) ? output_local[h][w] : (fixed_point_t)0;
             }
         }
     }
