@@ -17,8 +17,12 @@ void maxpool(
     const int S = 2;
     const int P = 0;
 
-    int H_OUT = (H + 2*P - K)/S + 1;
-    int W_OUT = (W + 2*P - K)/S + 1;
+    // int H_OUT = (H + 2*P - K)/S + 1;
+    // int W_OUT = (W + 2*P - K)/S + 1;
+
+    int H_OUT = ((H + 2*P - K + S - 1) / S) + 1;  // Ceiling division trick
+    int W_OUT = ((W + 2*P - K + S - 1) / S) + 1;  // Ceiling division trick
+
 
     IC_LOOP:
     for (int ic = 0; ic < IC;ic++){

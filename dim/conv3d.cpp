@@ -76,7 +76,7 @@ void conv3d(
     fixed_point_t local_weights[MAX_CONV_K][MAX_CONV_K];
     fixed_point_t local_activations[MAX_CONV_H + 2*MAX_CONV_K][MAX_CONV_W + 2*MAX_CONV_K];
     // fixed_point_t local_output[MAX_CONV_H][MAX_CONV_W];
-    accum_t local_output[MAX_FIRE_H][MAX_FIRE_W];
+    fixed_point_t local_output[MAX_FIRE_H][MAX_FIRE_W];
 
     // auto local_weights = new fixed_point_t[MAX_CONV_K][MAX_CONV_K];
     // auto local_activations = new fixed_point_t[MAX_CONV_H + 2*MAX_CONV_K][MAX_CONV_W + 2*MAX_CONV_K];
@@ -122,7 +122,7 @@ void conv3d(
                         }
                     }
 
-                    local_output[h][w] += sum;
+                    local_output[h][w] += (fixed_point_t)sum;
                 }
             }
         }
@@ -131,7 +131,7 @@ void conv3d(
         for (int h = 0; h < H_OUT; h++) {
             for (int w = 0; w < W_OUT; w++) {
                 #pragma HLS PIPELINE II=1
-                output[h][w][oc] = (fixed_point_t)local_output[h][w];
+                output[h][w][oc] = local_output[h][w];
             }
         }
     }
