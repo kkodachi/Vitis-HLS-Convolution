@@ -137,7 +137,7 @@ void squeeze_golden(
                 for (int ic = 0; ic < IC; ic++) {
                     sum += input[h][w][ic] * weights[ic][sc];
                 }
-                squeeze_output[h][w][sc] = (sum > 0) ? (fixed_point_t)sum : 0;
+                squeeze_output[h][w][sc] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
             }
         }
     }
@@ -157,7 +157,7 @@ void expand1_golden(
                 for (int sc = 0; sc < SC; sc++) {
                     sum += input[h][w][sc] * expand1x1_weights[sc][ec];
                 }
-                output[h][w][ec] = (sum > 0) ? (fixed_point_t)sum : 0;
+                output[h][w][ec] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
             }
         }
     }
@@ -201,7 +201,7 @@ void expand3_golden(
                     }
                 }
 
-                fixed_point_t relu = (sum > 0) ? (fixed_point_t)sum : 0;
+                fixed_point_t relu = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
                 output[h][w][offset + ec] = relu;
             }
         }
