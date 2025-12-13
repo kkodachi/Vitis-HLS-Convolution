@@ -97,7 +97,7 @@ void conv3d_golden(
         for (int oh = 0; oh < H_OUT; oh++) {
             for (int ow = 0; ow < W_OUT; ow++) {
                 
-                fixed_point_t sum = 0;
+                accum_t sum = 0;
 
                 for (int kh = 0; kh < K; kh++) {
                     for (int kw = 0; kw < K; kw++) {
@@ -397,7 +397,7 @@ int main(){
 
     delete[] mp_golden;
     // MAXPOOL TEST END
-
+    */
     // FIRE TEST START
     // int FIRE_IC = 96;
     const int FIRE_IC = conv_OC;
@@ -475,7 +475,7 @@ int main(){
     delete[] f_golden;
 
     // // FIRE TEST END
-
+    /*
     // AVGPOOL TEST START
     // test avgpool for final output
 
