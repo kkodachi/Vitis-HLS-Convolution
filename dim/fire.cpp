@@ -95,11 +95,11 @@ void expand3(
         H_OUT_LOOP:
         for (int h = 0; h < H_OUT; h++) {
             accum_t row_accum[MAX_FIRE_W];
-            #pragma HLS ARRAY_PARTITION variable=row_accum complete dim=1
+            #pragma HLS BIND_STORAGE variable=row_accum type=RAM_2P impl=BRAM
 
             INIT_ROW:
             for (int w = 0; w < W_OUT; w++) {
-                #pragma HLS UNROLL
+                #pragma HLS PIPELINE II=1
                 row_accum[w] = 0;
             }
 
@@ -124,6 +124,8 @@ void expand3(
                 W_OUT_LOOP:
                 for (int w = 0; w < W_OUT; w++) {
                     #pragma HLS PIPELINE II=1
+                    #pragma HLS DEPENDENCE variable=row_accum inter false
+                    #pragma HLS DEPENDENCE variable=row_accum intra false
 
                     accum_t sum = 0;
 
