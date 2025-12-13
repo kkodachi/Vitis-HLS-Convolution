@@ -74,7 +74,13 @@ void conv3d(
     #pragma HLS INTERFACE mode=s_axilite port=return
 
     fixed_point_t local_weights[MAX_CONV_K][MAX_CONV_K];
+    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=2
+
     fixed_point_t local_activations[MAX_CONV_H + 2*MAX_CONV_K][MAX_CONV_W + 2*MAX_CONV_K];
+    #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=K dim=2
+    #pragma HLS RESOURCE variable=local_activations core=RAM_2P_BRAM
+    
     // fixed_point_t local_output[MAX_CONV_H][MAX_CONV_W];
     accum_t local_output[MAX_FIRE_H][MAX_FIRE_W];
 

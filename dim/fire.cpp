@@ -9,6 +9,11 @@ void squeeze(
 )
 {
     fixed_point_t input_local[MAX_FIRE_IC];
+    #pragma HLS ARRAY_PARTITION variable=input_local cyclic factor=4
+    #pragma HLS RESOURCE variable=input_local core=RAM_2P_LUTRAM
+
+    #pragma HLS ARRAY_PARTITION variable=weights cyclic factor=4 dim=1
+    #pragma HLS RESOURCE variable=weights core=RAM_2P_BRAM
 
     H_LOOP:
     for (int h = 0; h < H; h++) {
@@ -22,11 +27,12 @@ void squeeze(
 
             SC_LOOP:
             for (int sc = 0; sc < SC; sc++) {
+                #pragma HLS PIPELINE II=1
                 accum_t sum = 0;
 
                 IC_LOOP:
                 for (int ic = 0; ic < IC; ic++) {
-                    #pragma HLS PIPELINE II=1
+                    #pragma HLS UNROLL factor=4
                     sum += input_local[ic] * weights[ic][sc];
                 }
 
@@ -44,7 +50,12 @@ void expand1(
 )
 {
     fixed_point_t input_local[MAX_FIRE_SC];
-    // #pragma HLS ARRAY_PARTITION variable=input_local complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=input_local complete
+
+    #pragma HLS ARRAY_PARTITION variable=expand1x1_weights cyclic factor=4 dim=1
+    #pragma HLS RESOURCE variable=expand1x1_weights core=RAM_2P_BRAM
+
+    #pragma HLS RESOURCE variable=output core=RAM_2P_BRAM
 
     H_LOOP:
     for (int h = 0; h < H; h++) {
@@ -79,10 +90,15 @@ void expand3(
 )
 {
     accum_t output_local[MAX_FIRE_H][MAX_FIRE_W];
-    #pragma HLS ARRAY_PARTITION variable=output_local complete dim=2
+    #pragma HLS RESOURCE variable=output_local core=RAM_2P_BRAM
     #pragma HLS DEPENDENCE variable=output_local inter false
+
     fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
+    #pragma HLS RESOURCE variable=input_local core=RAM_2P_BRAM
+
     fixed_point_t weights_local[3][3];
+    #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=2
 
     const int K = 3;
     const int S = 1;
@@ -104,8 +120,10 @@ void expand3(
         for (int sc = 0; sc < SC; sc++){
             LOAD_WEIGHTS:
             for (int i = 0; i < K; i++){
+                // #pragma HLS PIPELINE II=1
+                #pragma HLS UNROLL
                 for (int j = 0; j < K; j++){
-                    #pragma HLS PIPELINE II=1
+                    #pragma HLS UNROLL
                     weights_local[i][j] = expand3x3_weights[i][j][sc][ec];
                 }
             }
