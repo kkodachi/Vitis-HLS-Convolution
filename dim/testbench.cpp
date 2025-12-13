@@ -356,7 +356,7 @@ int main(){
     delete[] conv_w;
     delete[] conv_golden;
     // CONV TEST END
-    /*
+    
     // MAXPOOL TEST START
     // fixed_point_t mp_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
     // fixed_point_t mp_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
@@ -397,7 +397,7 @@ int main(){
 
     delete[] mp_golden;
     // MAXPOOL TEST END
-    */
+    
     // FIRE TEST START
     // int FIRE_IC = 96;
     const int FIRE_IC = conv_OC;
