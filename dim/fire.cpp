@@ -78,7 +78,7 @@ void expand3(
     int H, int W, int SC, int EC, int offset
 )
 {
-    fixed_point_t output_local[MAX_FIRE_H][MAX_FIRE_W];
+    accum_t output_local[MAX_FIRE_H][MAX_FIRE_W];
     fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
     fixed_point_t weights_local[3][3];
 
@@ -143,7 +143,7 @@ void expand3(
                         }
                     }
 
-                    output_local[h][w] += (fixed_point_t)sum;
+                    output_local[h][w] += sum;
                 }
             }
         }
@@ -151,7 +151,7 @@ void expand3(
         for (int h = 0; h < H_OUT; h++) {
             for (int w = 0; w < W_OUT; w++) {
                 #pragma HLS PIPELINE II=1
-                output[h][w][offset + ec] = (output_local[h][w] > 0) ? output_local[h][w] : (fixed_point_t)0;
+                output[h][w][offset + ec] = (output_local[h][w] > 0) ? (fixed_point_t)output_local[h][w] : (fixed_point_t)0;
             }
         }
     }
