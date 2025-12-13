@@ -475,7 +475,7 @@ int main(){
     delete[] f_golden;
 
     // // FIRE TEST END
-    /*
+    
     // AVGPOOL TEST START
     // test avgpool for final output
 
@@ -513,5 +513,5 @@ int main(){
         std::cout << "avgpool() matches golden" << std::endl;
     }
     // AVGPOOL TEST END
-    */
+    
 }
