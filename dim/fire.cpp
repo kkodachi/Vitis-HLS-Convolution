@@ -94,15 +94,6 @@ void expand3(
     for (int ec = 0; ec < EC; ec++){
         H_OUT_LOOP:
         for (int h = 0; h < H_OUT; h++) {
-            accum_t row_accum[MAX_FIRE_W];
-            #pragma HLS BIND_STORAGE variable=row_accum type=RAM_2P impl=BRAM
-
-            INIT_ROW:
-            for (int w = 0; w < W_OUT; w++) {
-                #pragma HLS PIPELINE II=1
-                row_accum[w] = 0;
-            }
-
             SC_LOOP:
             for (int sc = 0; sc < SC; sc++){
                 LOAD_WEIGHTS:
@@ -124,8 +115,6 @@ void expand3(
                 W_OUT_LOOP:
                 for (int w = 0; w < W_OUT; w++) {
                     #pragma HLS PIPELINE II=1
-                    #pragma HLS DEPENDENCE variable=row_accum inter false
-                    #pragma HLS DEPENDENCE variable=row_accum intra false
 
                     accum_t sum = 0;
 
@@ -148,14 +137,15 @@ void expand3(
                         }
                     }
 
-                    row_accum[w] += sum;
+                    // Read-modify-write directly to output
+                    accum_t prev = (sc == 0) ? (accum_t)0 : (accum_t)output[h][w][offset + ec];
+                    accum_t new_val = prev + sum;
+                    if (sc == SC - 1) {
+                        output[h][w][offset + ec] = (new_val > 0) ? (fixed_point_t)new_val : (fixed_point_t)0;
+                    } else {
+                        output[h][w][offset + ec] = (fixed_point_t)new_val;
+                    }
                 }
-            }
-
-            WB_ROW:
-            for (int w = 0; w < W_OUT; w++) {
-                #pragma HLS PIPELINE II=1
-                output[h][w][offset + ec] = (row_accum[w] > 0) ? (fixed_point_t)row_accum[w] : (fixed_point_t)0;
             }
         }
     }
