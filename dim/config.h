@@ -1,4 +1,4 @@
-// #include "ap_fixed.h"
+#include "ap_fixed.h"
 // #include <stdint.h>
 
 // fixed-point type: 4 integer bits, 4 fractional bits
