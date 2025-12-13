@@ -44,6 +44,7 @@ void expand1(
 )
 {
     fixed_point_t input_local[MAX_FIRE_SC];
+    // #pragma HLS ARRAY_PARTITION variable=input_local complete dim=1
 
     H_LOOP:
     for (int h = 0; h < H; h++) {
@@ -77,11 +78,11 @@ void expand3(
     int H, int W, int SC, int EC, int offset
 )
 {
+    accum_t output_local[MAX_FIRE_H][MAX_FIRE_W];
+    #pragma HLS ARRAY_PARTITION variable=output_local complete dim=2
+    #pragma HLS DEPENDENCE variable=output_local inter false
     fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
-    #pragma HLS ARRAY_PARTITION variable=input_local cyclic factor=3 dim=1
-    #pragma HLS ARRAY_PARTITION variable=input_local cyclic factor=3 dim=2
     fixed_point_t weights_local[3][3];
-    #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=0
 
     const int K = 3;
     const int S = 1;
@@ -92,26 +93,33 @@ void expand3(
 
     EC_LOOP:
     for (int ec = 0; ec < EC; ec++){
-        H_OUT_LOOP:
+        INIT_OUTPUT:
         for (int h = 0; h < H_OUT; h++) {
-            SC_LOOP:
-            for (int sc = 0; sc < SC; sc++){
-                LOAD_WEIGHTS:
-                for (int i = 0; i < K; i++){
-                    for (int j = 0; j < K; j++){
-                        #pragma HLS PIPELINE II=1
-                        weights_local[i][j] = expand3x3_weights[i][j][sc][ec];
-                    }
+            for (int w = 0; w < W_OUT; w++) {
+                #pragma HLS PIPELINE II=1
+                output_local[h][w] = 0;
+            }
+        }
+        SC_LOOP:
+        for (int sc = 0; sc < SC; sc++){
+            LOAD_WEIGHTS:
+            for (int i = 0; i < K; i++){
+                for (int j = 0; j < K; j++){
+                    #pragma HLS PIPELINE II=1
+                    weights_local[i][j] = expand3x3_weights[i][j][sc][ec];
                 }
+            }
 
-                LOAD_INPUT:
-                for (int hi = 0; hi < H; hi++){
-                    for (int wi = 0; wi < W; wi++){
-                        #pragma HLS PIPELINE II=1
-                        input_local[hi][wi] = input[hi][wi][sc];
-                    }
+            LOAD_INPUT:
+            for (int h = 0; h < H; h++){
+                for (int w = 0; w < W; w++){
+                    #pragma HLS PIPELINE II=1
+                    input_local[h][w] = input[h][w][sc];
                 }
+            }
 
+            H_OUT_LOOP:
+            for (int h = 0; h < H_OUT; h++) {
                 W_OUT_LOOP:
                 for (int w = 0; w < W_OUT; w++) {
                     #pragma HLS PIPELINE II=1
@@ -137,15 +145,15 @@ void expand3(
                         }
                     }
 
-                    // Read-modify-write directly to output
-                    accum_t prev = (sc == 0) ? (accum_t)0 : (accum_t)output[h][w][offset + ec];
-                    accum_t new_val = prev + sum;
-                    if (sc == SC - 1) {
-                        output[h][w][offset + ec] = (new_val > 0) ? (fixed_point_t)new_val : (fixed_point_t)0;
-                    } else {
-                        output[h][w][offset + ec] = (fixed_point_t)new_val;
-                    }
+                    output_local[h][w] += sum;
                 }
+            }
+        }
+        WB_LOOP:
+        for (int h = 0; h < H_OUT; h++) {
+            for (int w = 0; w < W_OUT; w++) {
+                #pragma HLS PIPELINE II=1
+                output[h][w][offset + ec] = (output_local[h][w] > 0) ? (fixed_point_t)output_local[h][w] : (fixed_point_t)0;
             }
         }
     }
@@ -168,6 +176,7 @@ void fire(
     if (!enable) return;
 
     fixed_point_t squeeze_output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_SC];
+    // #pragma HLS ARRAY_PARTITION variable=squeeze_output cyclic factor=8 dim=3
 
     // squeeze 1x1 conv + fused ReLU
     squeeze(input,squeeze_weights,squeeze_output,H,W,IC,SC);
