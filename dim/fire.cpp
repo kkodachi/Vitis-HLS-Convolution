@@ -123,6 +123,7 @@ void expand3(
                 W_OUT_LOOP:
                 for (int w = 0; w < W_OUT; w++) {
                     #pragma HLS PIPELINE II=1
+                    #pragma HLS DEPENDENCE variable=output_local intra false
 
                     accum_t sum = 0;
 
