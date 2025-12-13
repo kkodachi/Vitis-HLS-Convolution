@@ -80,6 +80,7 @@ void expand3(
 {
     accum_t output_local[MAX_FIRE_H][MAX_FIRE_W];
     #pragma HLS ARRAY_PARTITION variable=output_local cyclic factor=2 dim=2
+    #pragma HLS DEPENDENCE variable=output_local inter false
     fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
     fixed_point_t weights_local[3][3];
 
