@@ -89,7 +89,7 @@ void conv3d_os(
                 for (int w=0;w<W_OUT;w++){
                     #pragma HLS PIPELINE II=1
 
-                    accum_t sum = 0;
+                    accum_t sum = local_output[h][w];
 
                     KH_LOOP:
                     for (int kh = 0; kh < K; kh++) {
@@ -105,7 +105,7 @@ void conv3d_os(
                         }
                     }
 
-                    local_output[h][w] += sum;
+                    local_output[h][w] = sum;
                 }
             }
         }
