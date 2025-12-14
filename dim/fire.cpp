@@ -10,7 +10,7 @@ void squeeze(
 {
     fixed_point_t input_local[MAX_FIRE_IC];
     #pragma HLS ARRAY_PARTITION variable=input_local cyclic factor=4
-    #pragma HLS RESOURCE variable=input_local core=RAM_2P_LUTRAM
+    #pragma HLS bind_storage variable=input_local type=ram_2p impl=lutram
 
     #pragma HLS ARRAY_PARTITION variable=weights cyclic factor=4 dim=1
     #pragma HLS RESOURCE variable=weights core=RAM_2P_BRAM
@@ -51,11 +51,12 @@ void expand1(
 {
     fixed_point_t input_local[MAX_FIRE_SC];
     #pragma HLS ARRAY_PARTITION variable=input_local complete
+    #pragma HLS bind_storage variable=input_local type=ram_2p impl=lutram
 
     #pragma HLS ARRAY_PARTITION variable=expand1x1_weights cyclic factor=4 dim=1
-    #pragma HLS RESOURCE variable=expand1x1_weights core=RAM_2P_BRAM
+    #pragma HLS bind_storage variable=expand1x1_weights type=ram_2p impl=bram
 
-    #pragma HLS RESOURCE variable=output core=RAM_2P_BRAM
+    #pragma HLS bind_storage variable=output type=ram_2p impl=bram
 
     H_LOOP:
     for (int h = 0; h < H; h++) {
@@ -89,23 +90,28 @@ void expand3(
     int H, int W, int SC, int EC, int offset
 )
 {
-    accum_t output_local[MAX_FIRE_H][MAX_FIRE_W];
-    #pragma HLS RESOURCE variable=output_local core=RAM_2P_BRAM
-    #pragma HLS DEPENDENCE variable=output_local inter false
-
-    fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
-    #pragma HLS RESOURCE variable=input_local core=RAM_2P_BRAM
-
-    fixed_point_t weights_local[3][3];
-    #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=1
-    #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=2
-
     const int K = 3;
     const int S = 1;
     const int P = 1;
 
     int H_OUT = (H + 2*P - K)/S + 1;
     int W_OUT = (W + 2*P - K)/S + 1;
+
+    accum_t output_local[MAX_FIRE_H][MAX_FIRE_W];
+    #pragma HLS bind_storage variable=output_local type=ram_2p impl=lutram
+    #pragma HLS ARRAY_PARTITION variable=output_local cyclic factor=3 dim=2
+    // #pragma HLS bind_storage variable=output_local type=ram_2p impl=bram
+    #pragma HLS DEPENDENCE variable=output_local inter false
+
+    fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
+    #pragma HLS bind_storage variable=input_local type=ram_2p impl=lutram
+    #pragma HLS ARRAY_PARTITION variable=input_local cyclic factor=3 dim=2
+    // #pragma HLS bind_storage variable=input_local type=ram_2p impl=bram
+    
+
+    fixed_point_t weights_local[K][K];
+    #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=2
 
     EC_LOOP:
     for (int ec = 0; ec < EC; ec++){
