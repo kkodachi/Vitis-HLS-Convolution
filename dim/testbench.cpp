@@ -329,6 +329,7 @@ int main(){
     }
     
     conv3d(enable,conv_in,conv_w,conv_out,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
+    // conv3d_2(enable,conv_in,conv_w,conv_out,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
     conv3d_golden(enable,conv_in,conv_w,conv_golden,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
 
     std::cout << "Comparing conv with golden" << std::endl;

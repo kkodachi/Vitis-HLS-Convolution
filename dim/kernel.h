@@ -95,3 +95,19 @@ void controller(
     int layer,
     Args layers[]
 );
+
+void conv3d_2(
+    bool enable,
+    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC],
+    fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC],
+    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+
+    int H,      // input height
+    int W,      // input width
+    int IC,     // input channels
+    int OC,     // output channels
+    int K,      // kernel size
+    int S,      // stride
+    int P       // padding
+);
