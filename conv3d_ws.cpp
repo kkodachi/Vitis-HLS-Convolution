@@ -3,9 +3,10 @@
 void load_weights(
     fixed_point_t weights[MAX_K][MAX_K][MAX_IC][MAX_OC],
     fixed_point_t local_weights[MAX_K][MAX_K][MAX_IC],
-    int IC, int K, int OC
+    int IC, int OC
 ){
     LOAD_WEIGHTS:
+    const int K=3;
     for (int kx=0;kx<K;kx++){
         for (int ky=0;ky<K;ky++){
             for (int ic=0;ic<IC;ic++){
@@ -45,7 +46,7 @@ void conv3d_ws(
     int W,      // input width
     int IC,     // input channels
     int OC,     // output channels
-    int K,      // kernel size
+    // int K,      // kernel size
     int stride, // stride
     int pad     // padding
 )
@@ -54,7 +55,7 @@ void conv3d_ws(
     #pragma HLS INTERFACE mode=s_axilite port=W
     #pragma HLS INTERFACE mode=s_axilite port=IC
     #pragma HLS INTERFACE mode=s_axilite port=OC
-    #pragma HLS INTERFACE mode=s_axilite port=K
+    // #pragma HLS INTERFACE mode=s_axilite port=K
     #pragma HLS INTERFACE mode=s_axilite port=stride
     #pragma HLS INTERFACE mode=s_axilite port=pad
     #pragma HLS INTERFACE mode=s_axilite port=return
@@ -75,17 +76,18 @@ void conv3d_ws(
 //    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=K dim=2
 
     fixed_point_t local_activations[MAX_H + 2*MAX_K][MAX_W + 2*MAX_K];
-    #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=K dim=2
+    #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=3 dim=2
 
     fixed_point_t local_output[MAX_H][MAX_W];
-    #pragma HLS ARRAY_PARTITION variable=local_output cyclic factor=K dim=2
+    #pragma HLS ARRAY_PARTITION variable=local_output cyclic factor=3 dim=2
 
+    const int K=3;
     int H_OUT = (H + 2*pad - K)/stride + 1;
     int W_OUT = (W + 2*pad - K)/stride + 1;
 
     OC_LOOP:
     for (int oc=0;oc<OC;oc++){
-        load_weights(weights,local_weights,IC,K,oc);
+        load_weights(weights,local_weights,IC,oc);
 
         INIT_ZERO_LOOP:
         for (int h = 0; h < H_OUT; h++) {
