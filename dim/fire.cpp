@@ -104,8 +104,8 @@ void expand3(
     #pragma HLS DEPENDENCE variable=output_local inter false
 
     fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
+    #pragma HLS ARRAY_PARTITION variable=input_local complete dim=2
     #pragma HLS bind_storage variable=input_local type=ram_2p impl=lutram
-    #pragma HLS ARRAY_PARTITION variable=input_local cyclic factor=3 dim=2
     // #pragma HLS bind_storage variable=input_local type=ram_2p impl=bram
     
 
