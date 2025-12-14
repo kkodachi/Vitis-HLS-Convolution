@@ -95,9 +95,6 @@ void expand3(
     int H_OUT = (H + 2*P - K)/S + 1;
     int W_OUT = (W + 2*P - K)/S + 1;
 
-    accum_t temp_output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_EC];
-    #pragma HLS ARRAY_PARTITION variable=temp_output cyclic factor=4 dim=3
-    
     fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
     #pragma HLS bind_storage variable=input_local type=ram_2p impl=lutram
     #pragma HLS ARRAY_PARTITION variable=input_local cyclic factor=3 dim=2
@@ -106,46 +103,31 @@ void expand3(
     #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=1
     #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=2
 
-    INIT_EC:
-    for (int ec = 0; ec < EC; ec++) {
-        INIT_H:
+    EC_LOOP:
+    for (int ec = 0; ec < EC; ec++){
+        H_OUT_LOOP:
         for (int h = 0; h < H_OUT; h++) {
-            INIT_W:
+            W_OUT_LOOP:
             for (int w = 0; w < W_OUT; w++) {
-                #pragma HLS PIPELINE II=1
-                temp_output[h][w][ec] = 0;
-            }
-        }
-    }
+                accum_t sum = 0;
+                SC_LOOP:
+                for (int sc = 0; sc < SC; sc++){
+                    LOAD_WEIGHTS:
+                    for (int i = 0; i < K; i++){
+                        #pragma HLS UNROLL
+                        for (int j = 0; j < K; j++){
+                            #pragma HLS UNROLL
+                            weights_local[i][j] = expand3x3_weights[i][j][sc][ec];
+                        }
+                    }
 
-    SC_LOOP:
-    for (int sc = 0; sc < SC; sc++){
-        LOAD_INPUT:
-        for (int hi = 0; hi < H; hi++){
-            for (int wi = 0; wi < W; wi++){
-                #pragma HLS PIPELINE II=1
-                input_local[hi][wi] = input[hi][wi][sc];
-            }
-        }
-
-        EC_LOOP:
-        for (int ec = 0; ec < EC; ec++){
-            LOAD_WEIGHTS:
-            for (int i = 0; i < K; i++){
-                for (int j = 0; j < K; j++){
-                    #pragma HLS UNROLL
-                    weights_local[i][j] = expand3x3_weights[i][j][sc][ec];
-                }
-            }
-
-            H_OUT_LOOP:
-            for (int h = 0; h < H_OUT; h++) {
-                W_OUT_LOOP:
-                for (int w = 0; w < W_OUT; w++) {
-                    #pragma HLS PIPELINE II=1
-                    #pragma HLS DEPENDENCE variable=temp_output inter false
-                    
-                    accum_t sum = 0;
+                    LOAD_INPUT:
+                    for (int hi = 0; hi < H; hi++){
+                        for (int wi = 0; wi < W; wi++){
+                            #pragma HLS PIPELINE II=1
+                            input_local[hi][wi] = input[hi][wi][sc];
+                        }
+                    }
 
                     KH_LOOP:
                     for (int kh = 0; kh < K; kh++) {
@@ -164,22 +146,8 @@ void expand3(
                             sum += val * weights_local[kh][kw];
                         }
                     }
-                    
-                    temp_output[h][w][ec] += sum;
                 }
-            }
-        }
-    }
-
-    WB_EC:
-    for (int ec = 0; ec < EC; ec++) {
-        WB_H:
-        for (int h = 0; h < H_OUT; h++) {
-            WB_W:
-            for (int w = 0; w < W_OUT; w++) {
-                #pragma HLS PIPELINE II=1
-                accum_t val = temp_output[h][w][ec];
-                output[h][w][offset + ec] = (val > 0) ? (fixed_point_t)val : (fixed_point_t)0;
+                output[h][w][offset + ec] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
             }
         }
     }
