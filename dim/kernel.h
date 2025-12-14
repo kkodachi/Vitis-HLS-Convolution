@@ -3,8 +3,14 @@
 // PARAMETERS FOR conv3d()
 #define MAX_CONV_H 224 // max height of input to conv kernel (conv1)
 #define MAX_CONV_W 224 // max width of input to conv kernel (conv1)
-#define MAX_CONV_IC 512 // max input channels to conv kernel (conv10)
-#define MAX_CONV_OC 96 // max output channels to conv kernel (conv1)
+#define MAX_CONV1_IC 3 // max input channels to conv1 kernel (conv1)
+#define MAX_CONV1_OC 96 // max output channels to conv kernel (conv1)
+
+#define MAX_CONV10_H 224 // max height of input to conv kernel (conv1)
+#define MAX_CONV10_W 224 // max width of input to conv kernel (conv1)
+
+#define MAX_CONV10_IC 512 // max input channels to conv kernel (conv10)
+
 #define MAX_CONV_K 7 // max kernel size for conv kernel (conv1)
 
 // parameters for fire()
@@ -20,7 +26,7 @@
 #define AVGPOOL_H 14
 #define AVGPOOL_W 14
 #define AVGPOOL_C 10
-#define NUM_CLASSES 10
+// #define NUM_CLASSES 10
 
 // parameters for top module and controller
 #define MODULES 4
@@ -111,3 +117,29 @@ void conv3d_2(
     int S,      // stride
     int P       // padding
 );
+
+void conv1(
+    bool enable,
+    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
+    fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV1_IC][MAX_CONV1_OC],
+    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+
+    int H,      // input height
+    int W,      // input width
+    int IC,     // input channels
+    int OC     // output channels
+)
+
+void conv10(
+    bool enable,
+    fixed_point_t activations[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    fixed_point_t weights[MAX_CONV10_IC][AVGPOOL_C],
+    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    fixed_point_t output[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C],
+
+    int H,      // input height
+    int W,      // input width
+    int IC,     // input channels
+    int OC     // output channels
+)

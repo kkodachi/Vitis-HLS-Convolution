@@ -206,31 +206,6 @@ void expand3_golden(
             }
         }
     }
-
-    // for (int ec = 0; ec < EC; ec++){
-    //     for (int sc = 0; sc < SC; sc++){
-    //         for (int h = 0; h < H_OUT; h++) {
-    //             for (int w = 0; w < W_OUT; w++) {
-    //                 accum_t sum = 0;
-    //                 for (int kh = 0; kh < K; kh++) {
-    //                     for (int kw = 0; kw < K; kw++) {
-    //                         int h_in = h * S + kh - P;
-    //                         int w_in = w * S + kw - P;
-
-    //                         // zero padding
-    //                         fixed_point_t val = 0;
-    //                         if (h_in >= 0 && h_in < H && w_in >= 0 && w_in < W) {
-    //                             val = input[h_in][w_in][sc];
-    //                         }
-
-    //                         sum += val * expand3x3_weights[kh][kw][sc][ec];
-    //                     }
-    //                 }
-    //                 output[h][w][offset+ec] = ((fixed_point_t)sum > 0) ? (fixed_point_t)sum : 0;
-    //             }
-    //         }
-    //     }
-    // }
 }
 
 void fire_golden(
@@ -301,8 +276,8 @@ int main(){
     // fixed_point_t conv_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
     // fixed_point_t conv_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
 
-    auto conv_in = new fixed_point_t[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC];
-    auto conv_w = new fixed_point_t[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC];
+    auto conv_in = new fixed_point_t[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC];
+    auto conv_w = new fixed_point_t[MAX_CONV_K][MAX_CONV_K][MAX_CONV1_IC][MAX_CONV1_OC];
     auto conv_out = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
     auto conv_golden = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
     
@@ -328,8 +303,8 @@ int main(){
         }
     }
     
-    conv3d(enable,conv_in,conv_w,conv_out,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
-    // conv3d_2(enable,conv_in,conv_w,conv_out,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
+    // conv3d(enable,conv_in,conv_w,conv_out,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
+    conv1(enable,conv_in,conv_w,conv_out,conv_H,conv_W,conv_IC,conv_OC);
     conv3d_golden(enable,conv_in,conv_w,conv_golden,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
 
     std::cout << "Comparing conv with golden" << std::endl;
@@ -476,6 +451,65 @@ int main(){
     delete[] f_golden;
 
     // // FIRE TEST END
+
+
+    // CONV10 TEST START
+
+    auto conv10_in = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    auto conv10_w = new fixed_point_t[MAX_CONV10_IC][AVGPOOL_C];
+    auto conv10_out = new fixed_point_t[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C];
+    auto conv10_golden = new fixed_point_t[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C];
+
+    const int conv10_H = 14;
+    const int conv10_W = 14;
+    const int conv10_IC = 512;
+
+    // randomize input
+    for (int h = 0; h < conv10_H; h++){
+        for (int w = 0; w < conv10_W; w++){
+            for (int ic = 0; ic < conv10_IC; ic++){
+                int steps = std::rand() % 256;  // 8-bit range 0 to 255
+                conv10_in[h][w][ic] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+            }
+        }
+    }
+    
+    // randomize weights
+    for (int h = 0; h < MAX_CONV10_IC; h++){
+        for (int w = 0; w < AVGPOOL_C; w++){
+                int steps = std::rand() % 256;  // 8-bit range 0 to 255
+                conv10_W[h][w] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+        }
+    }
+
+    conv10(enable,conv10_in,conv10_w,conv10_out,conv10_H,conv10_W,conv10_IC,AVGPOOL_C);
+    conv3d_golden(enable,conv10_in,conv10_w,conv10_golden,conv10_H,conv10_W,conv10_IC,AVGPOOL_C,1,1,0);
+
+    count = 0;
+    for (int i = 0; i < AVGPOOL_H; i++){
+        for (int j = 0; j < AVGPOOL_W; j++){
+            for (int k = 0; k < AVGPOOL_C; k++){
+                if (conv10_out[i][j][k] != conv10_golden[i][j][k]){
+                    if (count < 5){
+                        std::cout << "Mismatch at h, w, oc: " << i << " " << j << " " << k << ", kernel: " << conv10_out[i][j][k] << " golden: " << conv10_golden[i][j][k] << std::endl;
+                    }
+                    count++;
+                }
+            }
+        }
+    }
+    if (count != 0){
+        std::cout << "fire() does not match golden: " << count << "/" << (FIRE_OH * FIRE_OW * FIRE_OC) << " mismatches" << std::endl;
+    }
+    else {
+        std::cout << "fire() matches golden" << std::endl;
+    }
+    delete[] conv10_in;
+    delete[] conv10_w;
+    delete[] conv10_out;
+    delete[] conv10_golden;
+
+    // CONV10 TEST END
     
     // AVGPOOL TEST START
     // test avgpool for final output
