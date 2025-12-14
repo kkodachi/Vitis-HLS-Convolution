@@ -12,6 +12,8 @@ void maxpool(
 {
     if (!enable) return;
     fixed_point_t output_local[MAX_FIRE_H][MAX_FIRE_W];
+    fixed_point_t window[3][3];
+    #pragma HLS ARRAY_PARTITION variable=window complete dim=0
 
     const int K = 3;
     const int S = 2;
@@ -26,10 +28,6 @@ void maxpool(
         for (int oh = 0; oh < H_OUT; oh++){
             OW_LOOP:
             for (int ow = 0; ow < W_OUT; ow++){
-                
-                fixed_point_t window[3][3];
-                #pragma HLS ARRAY_PARTITION variable=window complete dim=0
-                
                 LOAD_KH:
                 for (int kh = 0; kh < K; kh++) {
                     LOAD_KW:

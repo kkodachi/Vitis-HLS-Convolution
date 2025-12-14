@@ -11,7 +11,7 @@ void controller(bool enables[],int layer, Args args[])
             enables[AVGPOOL_IND] = false;
             break;
 
-        default:
-            // throw error or something
+//        default:
+//            // throw error or something
     }
 }

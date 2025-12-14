@@ -10,11 +10,11 @@ need to resize to smaller for avgpool but other than that every module should ha
 
 void squeezenet(
     float input[MAX_CONV_H * MAX_CONV_H * 3], // 224x224x3 images
-    int output[NUM_CLASSES]
+    int output[AVGPOOL_C]
 )
 {
     // convert flattened buffer to 3D
-    fixed_point_t img[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC];
+    fixed_point_t img[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC];
 
     // number of layers in model
     const int LAYERS = 14; // 15?
