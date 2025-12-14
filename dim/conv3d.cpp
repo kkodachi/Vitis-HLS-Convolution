@@ -260,7 +260,7 @@ void conv3d_2(
                     for (int w = 0; w < TILE_W && (tile_w + w) < W_OUT; w++) {
                         #pragma HLS PIPELINE II=1
                         output[tile_h + h][tile_w + w][oc] =
-                            (fixed_point_t)((local_output[h][w] > 0) ? local_output[h][w] : 0);
+                            (fixed_point_t)((local_output[h][w] > 0) ? local_output[h][w] : (accum_t)0);
                     }
                 }
 
