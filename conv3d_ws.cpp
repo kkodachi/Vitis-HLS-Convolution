@@ -104,9 +104,7 @@ void conv3d_ws(
             for (int h=0;h<H_OUT;h++){
                 W_OUT_LOOP:
                 for (int w=0;w<W_OUT;w++){
-                    #pragma HLS PIPELINE II=1
-
-                    accum_t sum = 0;
+                    accum_t partial = 0;
 
                     KH_LOOP:
                     for (int kh = 0; kh < K; kh++) {
@@ -117,11 +115,11 @@ void conv3d_ws(
                             int h_in = h * stride + kh;
                             int w_in = w * stride + kw;
 
-                            sum += local_activations[h_in][w_in] * 
-                                   local_weights[kh][kw][ic];
+                            partial += local_activations[h_in][w_in] * 
+                                       local_weights[kh][kw][ic];
                         }
                     }
-                    local_output[h][w] = local_output[h][w] + (fixed_point_t)sum;
+                    local_output[h][w] = local_output[h][w] + (fixed_point_t)partial;
                 }
             }
         }
