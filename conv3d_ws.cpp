@@ -27,15 +27,13 @@ void load_activations(
         for (int w = 0; w < W + 2*pad; w++) {
             #pragma HLS PIPELINE II=1
             if (h < pad || h >= H + pad || w < pad || w >= W + pad) {
-                local_activations[h][w] = 0; // zero padding
+                local_activations[h][w] = 0;
             } else {
                 local_activations[h][w] = activations[h - pad][w - pad][IC_ind];
             }
         }
     }
 }
-
-
 
 void conv3d_ws(
     fixed_point_t activations[MAX_H][MAX_W][MAX_IC],
@@ -46,7 +44,6 @@ void conv3d_ws(
     int W,      // input width
     int IC,     // input channels
     int OC,     // output channels
-    // int K,      // kernel size
     int stride, // stride
     int pad     // padding
 )
@@ -55,25 +52,18 @@ void conv3d_ws(
     #pragma HLS INTERFACE mode=s_axilite port=W
     #pragma HLS INTERFACE mode=s_axilite port=IC
     #pragma HLS INTERFACE mode=s_axilite port=OC
-    // #pragma HLS INTERFACE mode=s_axilite port=K
     #pragma HLS INTERFACE mode=s_axilite port=stride
     #pragma HLS INTERFACE mode=s_axilite port=pad
     #pragma HLS INTERFACE mode=s_axilite port=return
 
-    // MAX_H*MAX_W*MAX_IC
     #pragma HLS INTERFACE m_axi port=activations offset=slave depth=262144
-	// MAX_K*MAX_K*MAX_IC*MAX_OC
     #pragma HLS INTERFACE m_axi port=weights     offset=slave depth=589824
-	// MAX_H*MAX_W*MAX_OC
     #pragma HLS INTERFACE m_axi port=output      offset=slave depth=262144
 
     fixed_point_t local_weights[MAX_K][MAX_K][MAX_IC];
-    // IC
     #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=16 dim=3
 	#pragma HLS ARRAY_PARTITION variable=local_weights complete dim=1
 	#pragma HLS ARRAY_PARTITION variable=local_weights complete dim=2
-//    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=K dim=1
-//    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=K dim=2
 
     fixed_point_t local_activations[MAX_H + 2*MAX_K][MAX_W + 2*MAX_K];
     #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=3 dim=2
@@ -108,6 +98,8 @@ void conv3d_ws(
                 W_OUT_LOOP:
                 for (int w=0;w<W_OUT;w++){
                     #pragma HLS PIPELINE II=1
+                    #pragma HLS DEPENDENCE variable=accum_output inter false
+                    
                     accum_t partial = 0;
 
                     KH_LOOP:
