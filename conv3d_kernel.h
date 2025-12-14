@@ -19,7 +19,6 @@ void conv3d_ws(
     int W,      // input width
     int IC,     // input channels
     int OC,     // output channels
-    int K,      // kernel size
     int stride, // stride
     int pad     // padding
 );
@@ -33,7 +32,6 @@ void conv3d_os(
     int W,      // input width
     int IC,     // input channels
     int OC,     // output channels
-    int K,      // kernel size
     int stride, // stride
     int pad     // padding
 );

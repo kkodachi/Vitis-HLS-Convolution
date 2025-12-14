@@ -157,12 +157,12 @@ int main() {
     conv3d_golden(activations, weights, golden, H, W, IC, OC, K, S, P);
 
     // run kernel
-    conv3d_ws(activations, weights, out_ws, H, W, IC, OC, K, S, P);
+    conv3d_ws(activations, weights, out_ws, H, W, IC, OC, S, P);
     // compare results
     compare_results(out_ws,golden,OC,H_OUT,W_OUT);
 
     // run kernel
-    conv3d_os(activations, weights, out_os, H, W, IC, OC, K, S, P);
+    conv3d_os(activations, weights, out_os, H, W, IC, OC, S, P);
     compare_results(out_os,golden,OC,H_OUT,W_OUT);
 
 //    print_arr(golden,H_OUT,W_OUT,OC);

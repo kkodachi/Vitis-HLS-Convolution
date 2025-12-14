@@ -10,16 +10,16 @@ void conv3d_os(
     int W,      // input width
     int IC,     // input channels
     int OC,     // output channels
-    int K,      // kernel size
     int stride, // stride
     int pad     // padding
 )
 {
+    const int K = 3;
     #pragma HLS INTERFACE mode=s_axilite port=H
     #pragma HLS INTERFACE mode=s_axilite port=W
     #pragma HLS INTERFACE mode=s_axilite port=IC
     #pragma HLS INTERFACE mode=s_axilite port=OC
-    #pragma HLS INTERFACE mode=s_axilite port=K
+    // #pragma HLS INTERFACE mode=s_axilite port=K
     #pragma HLS INTERFACE mode=s_axilite port=stride
     #pragma HLS INTERFACE mode=s_axilite port=pad
     #pragma HLS INTERFACE mode=s_axilite port=return
@@ -40,10 +40,10 @@ void conv3d_os(
     // #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=K dim=2
 
     fixed_point_t local_activations[MAX_H + 2*MAX_K][MAX_W + 2*MAX_K];
-    #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=K dim=2
+    #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=3 dim=2
 
     fixed_point_t local_output[MAX_H][MAX_W];
-    #pragma HLS ARRAY_PARTITION variable=local_output cyclic factor=K dim=2
+    #pragma HLS ARRAY_PARTITION variable=local_output cyclic factor=3 dim=2
 
     // output dimensions
     int H_OUT = (H + 2*pad - K)/stride + 1;
