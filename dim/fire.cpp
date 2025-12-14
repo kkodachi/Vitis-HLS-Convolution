@@ -27,7 +27,6 @@ void squeeze(
 
             SC_LOOP:
             for (int sc = 0; sc < SC; sc++) {
-                #pragma HLS PIPELINE II=1
                 accum_t sum = 0;
 
                 IC_LOOP:
@@ -73,7 +72,6 @@ void expand1(
 
                 SC_LOOP:
                 for (int sc = 0; sc < SC; sc++) {
-                    #pragma HLS PIPELINE II=1
                     sum += input_local[sc] * expand1x1_weights[sc][ec];
                 }
 
@@ -165,19 +163,15 @@ void fire(
     int H,
     int W,
     int IC,
-    int SC, // squeeze channels
-    int EC // expand channels
+    int SC,
+    int EC
 )
 {
     if (!enable) return;
 
     fixed_point_t squeeze_output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_SC];
-    // #pragma HLS ARRAY_PARTITION variable=squeeze_output cyclic factor=8 dim=3
 
-    // squeeze 1x1 conv + fused ReLU
     squeeze(input,squeeze_weights,squeeze_output,H,W,IC,SC);
-    // expand 1x1 conv + fused ReLU, writes directly to output
     expand1(squeeze_output,expand1x1_weights,output,H,W,SC,EC);
-    // squeeze 3x3 conv + fused ReLU, writes directly to output
     expand3(squeeze_output,expand3x3_weights,output,H,W,SC,EC,EC);
 }
