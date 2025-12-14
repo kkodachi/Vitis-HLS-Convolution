@@ -6,8 +6,8 @@
 #define MAX_CONV1_IC 3 // max input channels to conv1 kernel (conv1)
 #define MAX_CONV1_OC 96 // max output channels to conv kernel (conv1)
 
-#define MAX_CONV10_H 224 // max height of input to conv kernel (conv1)
-#define MAX_CONV10_W 224 // max width of input to conv kernel (conv1)
+#define MAX_CONV10_H 14 // max height of input to conv kernel (conv1)
+#define MAX_CONV10_W 14 // max width of input to conv kernel (conv1)
 
 #define MAX_CONV10_IC 512 // max input channels to conv kernel (conv10)
 
@@ -37,8 +37,8 @@
 
 void conv3d(
     bool enable,
-    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC],
-    fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC],
+    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
+    fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV1_IC][MAX_CONV1_OC],
     // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
     fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
 
@@ -102,22 +102,6 @@ void controller(
     Args layers[]
 );
 
-void conv3d_2(
-    bool enable,
-    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC],
-    fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC],
-    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
-    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
-
-    int H,      // input height
-    int W,      // input width
-    int IC,     // input channels
-    int OC,     // output channels
-    int K,      // kernel size
-    int S,      // stride
-    int P       // padding
-);
-
 void conv1(
     bool enable,
     fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
@@ -129,7 +113,7 @@ void conv1(
     int W,      // input width
     int IC,     // input channels
     int OC     // output channels
-)
+);
 
 void conv10(
     bool enable,
@@ -142,4 +126,4 @@ void conv10(
     int W,      // input width
     int IC,     // input channels
     int OC     // output channels
-)
+);

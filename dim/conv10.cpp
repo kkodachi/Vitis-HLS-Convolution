@@ -34,20 +34,20 @@ void conv10(
             LOAD_INPUT:
             for (int ic = 0; ic < IC; ic++) {
                 #pragma HLS PIPELINE II=1
-                input_local[ic] = input[h][w][ic];
+                input_local[ic] = activations[h][w][ic];
             }
 
-            SC_LOOP:
-            for (int sc = 0; sc < SC; sc++) {
+            OC_LOOP:
+            for (int oc = 0; oc < OC; oc++) {
                 accum_t sum = 0;
 
                 IC_LOOP:
                 for (int ic = 0; ic < IC; ic++) {
                     #pragma HLS UNROLL factor=4
-                    sum += input_local[ic] * weights[ic][sc];
+                    sum += input_local[ic] * weights[ic][oc];
                 }
 
-                squeeze_output[h][w][sc] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
+                output[h][w][oc] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
             }
         }
     }
