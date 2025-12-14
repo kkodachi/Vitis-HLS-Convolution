@@ -65,7 +65,7 @@ void load_activations2(
     }
 }
 
-void conv3d_2(
+void conv3d(
     bool enable,
     fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC],
     fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC],
@@ -166,14 +166,10 @@ void conv3d_2(
     // delete[] local_output;
 }
 
-#include "kernel.h"
-#include "config.h"
-#include <assert.h>
-
 #define TILE_H 32
 #define TILE_W 32
 
-void conv3d(
+void conv3d_2(
     bool enable,
     fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC],
     fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC],
