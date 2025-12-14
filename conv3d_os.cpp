@@ -45,6 +45,9 @@ void conv3d_os(
     fixed_point_t local_output[MAX_H][MAX_W];
     #pragma HLS ARRAY_PARTITION variable=local_output complete dim=2
 
+    accum_t accum_output[MAX_H][MAX_W];
+    #pragma HLS ARRAY_PARTITION variable=accum_output complete dim=2
+
     // output dimensions
     int H_OUT = (H + 2*pad - K)/stride + 1;
     int W_OUT = (W + 2*pad - K)/stride + 1;
@@ -56,7 +59,7 @@ void conv3d_os(
         for (int h = 0; h < H_OUT; h++) {
             for (int w = 0; w < W_OUT; w++) {
                 #pragma HLS PIPELINE II=1
-                local_output[h][w] = 0;
+                accum_output[h][w] = 0;
             }
         }
 
@@ -87,6 +90,7 @@ void conv3d_os(
             for (int h=0;h<H_OUT;h++){
                 W_OUT_LOOP:
                 for (int w=0;w<W_OUT;w++){
+                    #pragma HLS PIPELINE II=1
                     accum_t partial = 0;
 
                     KH_LOOP:
@@ -103,8 +107,17 @@ void conv3d_os(
                         }
                     }
 
-                    local_output[h][w] = local_output[h][w] + partial;
+                    accum_output[h][w] += partial;
                 }
+            }
+        }
+
+        // write to local_output
+        WRITE_OUTPUT:
+        for (int h = 0; h < H_OUT; h++){
+            for (int w = 0; w < W_OUT; w++){
+                #pragma HLS PIPELINE II=1
+                local_output[h][w] = accum_output[h][w];
             }
         }
 
