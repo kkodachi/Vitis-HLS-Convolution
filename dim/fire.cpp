@@ -97,17 +97,9 @@ void expand3(
     int H_OUT = (H + 2*P - K)/S + 1;
     int W_OUT = (W + 2*P - K)/S + 1;
 
-    accum_t output_local[MAX_FIRE_H][MAX_FIRE_W];
-    #pragma HLS bind_storage variable=output_local type=ram_2p impl=lutram
-    #pragma HLS ARRAY_PARTITION variable=output_local cyclic factor=3 dim=2
-    // #pragma HLS bind_storage variable=output_local type=ram_2p impl=bram
-    #pragma HLS DEPENDENCE variable=output_local inter false
-
     fixed_point_t input_local[MAX_FIRE_H][MAX_FIRE_W];
-    #pragma HLS ARRAY_PARTITION variable=input_local complete dim=2
     #pragma HLS bind_storage variable=input_local type=ram_2p impl=lutram
-    // #pragma HLS bind_storage variable=input_local type=ram_2p impl=bram
-    
+    #pragma HLS ARRAY_PARTITION variable=input_local cyclic factor=3 dim=2
 
     fixed_point_t weights_local[K][K];
     #pragma HLS ARRAY_PARTITION variable=weights_local complete dim=1
@@ -115,40 +107,29 @@ void expand3(
 
     EC_LOOP:
     for (int ec = 0; ec < EC; ec++){
-        INIT_OUTPUT:
+        H_OUT_LOOP:
         for (int h = 0; h < H_OUT; h++) {
+            W_OUT_LOOP:
             for (int w = 0; w < W_OUT; w++) {
-                #pragma HLS PIPELINE II=1
-                output_local[h][w] = 0;
-            }
-        }
-        SC_LOOP:
-        for (int sc = 0; sc < SC; sc++){
-            LOAD_WEIGHTS:
-            for (int i = 0; i < K; i++){
-                // #pragma HLS PIPELINE II=1
-                #pragma HLS UNROLL
-                for (int j = 0; j < K; j++){
-                    #pragma HLS UNROLL
-                    weights_local[i][j] = expand3x3_weights[i][j][sc][ec];
-                }
-            }
+                accum_t sum = 0;
+                SC_LOOP:
+                for (int sc = 0; sc < SC; sc++){
+                    LOAD_WEIGHTS:
+                    for (int i = 0; i < K; i++){
+                        #pragma HLS UNROLL
+                        for (int j = 0; j < K; j++){
+                            #pragma HLS UNROLL
+                            weights_local[i][j] = expand3x3_weights[i][j][sc][ec];
+                        }
+                    }
 
-            LOAD_INPUT:
-            for (int h = 0; h < H; h++){
-                for (int w = 0; w < W; w++){
-                    #pragma HLS PIPELINE II=1
-                    input_local[h][w] = input[h][w][sc];
-                }
-            }
-
-            H_OUT_LOOP:
-            for (int h = 0; h < H_OUT; h++) {
-                W_OUT_LOOP:
-                for (int w = 0; w < W_OUT; w++) {
-                    #pragma HLS PIPELINE II=1
-
-                    accum_t sum = 0;
+                    LOAD_INPUT:
+                    for (int hi = 0; hi < H; hi++){
+                        for (int wi = 0; wi < W; wi++){
+                            #pragma HLS PIPELINE II=1
+                            input_local[hi][wi] = input[hi][wi][sc];
+                        }
+                    }
 
                     KH_LOOP:
                     for (int kh = 0; kh < K; kh++) {
@@ -159,7 +140,6 @@ void expand3(
                             int h_in = h * S + kh - P;
                             int w_in = w * S + kw - P;
 
-                            // zero padding
                             fixed_point_t val = 0;
                             if (h_in >= 0 && h_in < H && w_in >= 0 && w_in < W) {
                                 val = input_local[h_in][w_in];
@@ -168,16 +148,8 @@ void expand3(
                             sum += val * weights_local[kh][kw];
                         }
                     }
-
-                    output_local[h][w] += sum;
                 }
-            }
-        }
-        WB_LOOP:
-        for (int h = 0; h < H_OUT; h++) {
-            for (int w = 0; w < W_OUT; w++) {
-                #pragma HLS PIPELINE II=1
-                output[h][w][offset + ec] = (output_local[h][w] > 0) ? (fixed_point_t)output_local[h][w] : (fixed_point_t)0;
+                output[h][w][offset + ec] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
             }
         }
     }
