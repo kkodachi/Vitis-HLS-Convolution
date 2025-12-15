@@ -525,7 +525,7 @@ int main(){
     conv10_golden(enable,conv10_in,conv10_w,conv10_g,conv10_H,conv10_W,conv10_IC,AVGPOOL_C);
  //    conv3d_golden(enable,conv10_in,conv10_w,conv10_golden,conv10_H,conv10_W,conv10_IC,AVGPOOL_C,1,1,0);
 
-    int count = 0;
+    count = 0;
     for (int i = 0; i < AVGPOOL_H; i++){
         for (int j = 0; j < AVGPOOL_W; j++){
             for (int k = 0; k < AVGPOOL_C; k++){
