@@ -47,32 +47,31 @@ void conv1(
 
     OC_LOOP:
 	for (int oc = 0; oc < OC; oc++) {
-        IC_LOOP:
-		for (int ic = 0; ic < IC; ic++) {
-            LOAD_WEIGHTS:
-            for (int kh = 0; kh < K; kh++){
-                for (int kw = 0; kw < K; kw++){
-                	#pragma HLS PIPELINE II=1
-                    kernel[kh][kw] = weights[kh][kw][ic][oc];
-                }
+        OH_LOOP:
+        for (int oh = 0; oh < H_OUT; oh++) {
+            INIT_PSUM:
+            for (int ow = 0; ow < W_OUT; ow++) {
+                #pragma HLS PIPELINE II=1
+                psum[ow] = 0;
             }
-            OH_LOOP:
-            for (int oh = 0; oh < H_OUT; oh++) {
+            IC_LOOP:
+		    for (int ic = 0; ic < IC; ic++) {
+                LOAD_WEIGHTS:
+                for (int kh = 0; kh < K; kh++){
+                    for (int kw = 0; kw < K; kw++){
+                	    #pragma HLS PIPELINE II=1
+                        kernel[kh][kw] = weights[kh][kw][ic][oc];
+                    }
+                }
                 LOAD_LINE:
                 for (int k = 0; k < K; k++) {
                     int ih = oh * S + k - P;
                     for (int w = 0; w < W + 2*P; w++) {
-                    	#pragma HLS PIPELINE II=1
+                	    #pragma HLS PIPELINE II=1
                         int iw = w - P;
                         line_buffer[k][w] = (ih >= 0 && ih < H && iw >= 0 && iw < W) ? 
                                             activations[ih][iw][ic] : (fixed_point_t)0;
                     }
-                }
-
-                INIT_PSUM:
-                for (int ow = 0; ow < W_OUT; ow++) {
-                    #pragma HLS PIPELINE II=1
-                    psum[ow] = 0;
                 }
                 
                 OW_LOOP:
@@ -89,13 +88,13 @@ void conv1(
                         }
                     }
 
-                    psum[ow] = acc;
+                    psum[ow] += acc;
                 }
-                WB_LOOP:
-                for (int ow = 0; ow < W_OUT; ow++) {
-                    #pragma HLS PIPELINE II=1
-                    output[oh][ow][oc] = psum[ow];
-                }
+            }
+            WB_LOOP:
+            for (int ow = 0; ow < W_OUT; ow++) {
+                #pragma HLS PIPELINE II=1
+                output[oh][ow][oc] = psum[ow];
             }
         }
     }
