@@ -29,7 +29,7 @@ void conv10(
                     #pragma HLS PIPELINE II=1
                     psum += activations[h][w][ic] * weights[ic][oc];
                 }
-                output[h][w][oc] = (fixed_point_t)psum;
+                output[h][w][oc] = (psum > 0) ? (fixed_point_t)psum : (fixed_point_t)0;
             }
         }
     }
