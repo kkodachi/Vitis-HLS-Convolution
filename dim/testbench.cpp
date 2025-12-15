@@ -520,7 +520,7 @@ int main(){
         }
     }
     std::cout << "Calling conv10 kernel" << std::endl;
-    conv10(enable,conv10_in,conv10_w,conv10_out,conv10_H,conv10_W,conv10_IC,AVGPOOL_C);
+    conv10(enable,conv10_in,conv10_w,conv10_out);
     std::cout << "Calling conv10 golden" << std::endl;
     conv10_golden(enable,conv10_in,conv10_w,conv10_g,conv10_H,conv10_W,conv10_IC,AVGPOOL_C);
  //    conv3d_golden(enable,conv10_in,conv10_w,conv10_golden,conv10_H,conv10_W,conv10_IC,AVGPOOL_C,1,1,0);
