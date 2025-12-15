@@ -47,14 +47,6 @@ void conv1(
 
     OC_LOOP:
 	for (int oc = 0; oc < OC; oc++) {
-        // Initialize output for this OC
-        INIT_OUTPUT:
-        for (int oh = 0; oh < H_OUT; oh++) {
-            for (int ow = 0; ow < W_OUT; ow++) {
-                #pragma HLS PIPELINE II=1
-                output[oh][ow][oc] = 0;
-            }
-        }
         IC_LOOP:
 		for (int ic = 0; ic < IC; ic++) {
             LOAD_WEIGHTS:
@@ -102,7 +94,7 @@ void conv1(
                 WB_LOOP:
                 for (int ow = 0; ow < W_OUT; ow++) {
                     #pragma HLS PIPELINE II=1
-                    output[oh][ow][oc] += psum[ow];
+                    output[oh][ow][oc] = psum[ow];
                 }
             }
         }
