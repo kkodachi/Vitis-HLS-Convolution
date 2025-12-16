@@ -28,12 +28,50 @@
 #define AVGPOOL_W 14
 #define AVGPOOL_C 10
 
-// parameters for top module and controller
-#define MODULES 4
-#define CONV_IND 0
-#define MAXPOOL_IND 1
-#define FIRE_IND 2
-#define AVGPOOL_IND 3
+// Total layers in SqueezeNet
+#define TOTAL_LAYERS 14
+
+// ============================================================================
+// Layer Types
+// ============================================================================
+enum LayerType {
+    LAYER_NONE,
+    LAYER_CONV,      // Conv1
+    LAYER_MAXPOOL,   // MaxPool layers
+    LAYER_FIRE,      // Fire modules
+    LAYER_CONV10,    // Final 1x1 conv
+    LAYER_AVGPOOL    // Final avgpool
+};
+
+// ============================================================================
+// Layer Configuration Structure
+// ============================================================================
+struct LayerConfig {
+    LayerType layer_type;
+    
+    // Dimensions
+    int H;
+    int W;
+    int IC;
+    int OC;
+    
+    // Convolution parameters
+    int K;  // kernel size
+    int S;  // stride
+    int P;  // padding
+    
+    // Fire module parameters
+    int SC; // squeeze channels
+    int EC; // expand channels
+    int fire_id; // which fire module (2-9)
+    
+    LayerConfig() : layer_type(LAYER_NONE), H(0), W(0), IC(0), OC(0),
+                    K(0), S(0), P(0), SC(0), EC(0), fire_id(0) {}
+};
+
+// ============================================================================
+// Module Function Declarations
+// ============================================================================
 
 void conv3d(
     bool enable,
@@ -79,54 +117,45 @@ void conv10(
     bool enable,
     fixed_point_t activations[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
     fixed_point_t weights[MAX_FIRE_IC][AVGPOOL_C],
-    fixed_point_t output[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C],
-    int H, int W, int IC, int OC
+    fixed_point_t output[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C]
 );
 
 // ============================================================================
-// Args Structure - Contains all parameters and pointers for each layer
+// Controller Function - Main Entry Point
 // ============================================================================
-struct Args {
-    // Enable signals for each module type
-    bool enable_conv;
-    bool enable_maxpool;
-    bool enable_fire;
-    bool enable_avgpool;
-    
-    // Input dimensions
-    int H;
-    int W;
-    int IC;
-    int OC;
-    
-    // Conv-specific parameters
-    int K;  // kernel size
-    int S;  // stride
-    int P;  // padding
-    
-    // Fire-specific parameters
-    int SC; // squeeze channels
-    int EC; // expand channels
-    
-    // Weight pointers
-    fixed_point_t (*conv1_weights)[MAX_CONV_K][MAX_CONV1_IC][MAX_CONV1_OC];
-    fixed_point_t (*conv10_weights)[AVGPOOL_C];
-    fixed_point_t (*squeeze_weights)[MAX_FIRE_SC];
-    fixed_point_t (*expand1x1_weights)[MAX_FIRE_EC];
-    fixed_point_t (*expand3x3_weights)[3][MAX_FIRE_SC][MAX_FIRE_EC];
-    
-    // Constructor
-    Args() : enable_conv(false), enable_maxpool(false), 
-             enable_fire(false), enable_avgpool(false),
-             H(0), W(0), IC(0), OC(0), K(0), S(0), P(0), SC(0), EC(0),
-             conv1_weights(nullptr), conv10_weights(nullptr),
-             squeeze_weights(nullptr), expand1x1_weights(nullptr),
-             expand3x3_weights(nullptr) {}
-};
 
-// ============================================================================
-// Controller Function - Configures layer parameters and loads weights
-// ============================================================================
-void controller(int layer, Args &args);
+/*
+ * Main controller function that executes the entire SqueezeNet pipeline
+ * 
+ * @param input_image: Input image (224x224x3)
+ * @param final_output: Output class scores (10 classes)
+ */
+void controller(
+    fixed_point_t input_image[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
+    fixed_point_t final_output[AVGPOOL_C]
+);
+
+/*
+ * Configure layer parameters based on layer index
+ * 
+ * @param layer: Layer index (0-13)
+ * @param config: Output configuration structure
+ */
+void configure_layer(int layer, LayerConfig &config);
+
+/*
+ * Execute a configured layer
+ * 
+ * @param config: Layer configuration
+ * @param input_buf: Input activation buffer
+ * @param output_buf: Output activation buffer
+ * @param avgpool_output: Special output buffer for final avgpool
+ */
+void execute_layer(
+    LayerConfig &config,
+    fixed_point_t input_buf[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    fixed_point_t output_buf[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    fixed_point_t avgpool_output[AVGPOOL_C]
+);
 
 #endif // KERNEL_H
