@@ -21,16 +21,16 @@ void conv(
     
     static fixed_point_t line_buffer[MAX_CONV_DIM][MAX_CONV_DIM + 2*MAX_CONV_K];
     #pragma HLS ARRAY_PARTITION variable=line_buffer dim=1 complete
-//    #pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 complete
-	#pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 factor=3
+    #pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 complete
+//	#pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 factor=3
 
     fixed_point_t kernel[MAX_CONV_K][MAX_CONV_K];
     #pragma HLS ARRAY_PARTITION variable=kernel dim=1 complete
     #pragma HLS ARRAY_PARTITION variable=kernel dim=2 complete
 
     accum_t psum[MAX_CONV_DIM];
-//    #pragma HLS ARRAY_PARTITION variable=psum dim=1 complete
-	#pragma HLS ARRAY_PARTITION variable=psum dim=1 factor=3
+    #pragma HLS ARRAY_PARTITION variable=psum dim=1 complete
+	// #pragma HLS ARRAY_PARTITION variable=psum dim=1 factor=3
 
     OC_LOOP:
 	for (int oc = 0; oc < OC; oc++) {
@@ -66,6 +66,7 @@ void conv(
                     #pragma HLS PIPELINE II=1
                     #pragma HLS DEPENDENCE variable=output inter false
                     accum_t acc = 0;
+                    accum_t local_psum = psum[ow];
                     MAC_LOOP:
                     for (int kh = 0; kh < K; kh++) {
                         #pragma HLS UNROLL
@@ -75,7 +76,7 @@ void conv(
                         }
                     }
 
-                    psum[ow] += acc;
+                    psum[ow] = local_psum + acc;
                 }
             }
             WB_LOOP:
