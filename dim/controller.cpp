@@ -1,19 +1,42 @@
 #include "config.h"
 #include "kernel.h"
-#include "weights.h"
-#include "ap_int.h"
+#include <cstdio>
+#include <cstdint>
 
 // ============================================================================
 // Helper functions to reshape flat arrays into multi-dimensional arrays
 // ============================================================================
 
 void load_conv1_weights(fixed_point_t dest[MAX_CONV_K][MAX_CONV_K][MAX_CONV1_IC][MAX_CONV1_OC]) {
+    // int idx = 0;
+    // for (int kh = 0; kh < 7; kh++) {
+    //     for (int kw = 0; kw < 7; kw++) {
+    //         for (int ic = 0; ic < 3; ic++) {
+    //             for (int oc = 0; oc < 96; oc++) {
+    //                 dest[kh][kw][ic][oc] = fixed_point_t(conv1_weights_flat[idx++]);
+    //             }
+    //         }
+    //     }
+    // }
+    FILE* f = fopen("conv1_weights_flat.bin", "rb");
+    if (!f) {
+        // printf("Error: cannot open %s\n", conv1_weights_flat.bin);
+        return;
+    }
+
+    // Read the raw bytes into a flat temporary buffer
+    int8_t buffer[MAX_CONV_K * MAX_CONV_K * MAX_CONV1_IC * MAX_CONV1_OC];
+    size_t read = fread(buffer, sizeof(buffer[0]), MAX_CONV_K * MAX_CONV_K * MAX_CONV1_IC * MAX_CONV1_OC, f);
+    fclose(f);
+
+    // Copy into 4D fixed-point array
     int idx = 0;
-    for (int kh = 0; kh < 7; kh++) {
-        for (int kw = 0; kw < 7; kw++) {
-            for (int ic = 0; ic < 3; ic++) {
-                for (int oc = 0; oc < 96; oc++) {
-                    dest[kh][kw][ic][oc] = fixed_point_t(conv1_weights_flat[idx++]);
+    for (int kh = 0; kh < MAX_CONV_K; kh++) {
+        for (int kw = 0; kw < MAX_CONV_K; kw++) {
+            for (int ic = 0; ic < MAX_CONV1_IC; ic++) {
+                for (int oc = 0; oc < MAX_CONV1_OC; oc++) {
+                    #pragma HLS PIPELINE II=1
+                    dest[kh][kw][ic][oc] = fixed_point_t(buffer[idx++]);
                 }
             }
         }
@@ -21,42 +44,138 @@ void load_conv1_weights(fixed_point_t dest[MAX_CONV_K][MAX_CONV_K][MAX_CONV1_IC]
 }
 
 void load_conv10_weights(fixed_point_t dest[MAX_FIRE_IC][AVGPOOL_C]) {
+    // int idx = 0;
+    // for (int ic = 0; ic < 512; ic++) {
+    //     for (int oc = 0; oc < 10; oc++) {
+    //         dest[ic][oc] = fixed_point_t(conv10_weights_flat[idx++]);
+    //     }
+    // }
+    FILE* f = fopen("conv10_weights_flat.bin", "rb");
+    if (!f) {
+        // printf("Error: cannot open %s\n", "conv10_weights_flat.bin");
+        return;
+    }
+
+    // Read raw bytes into a flat buffer
+    int8_t buffer[MAX_FIRE_IC * AVGPOOL_C];
+    size_t read = fread(buffer, sizeof(buffer[0]), MAX_FIRE_IC * AVGPOOL_C, f);
+    // if (read != MAX_FIRE_IC * AVGPOOL_C) {
+        // printf("Warning: only read %zu of %d weights\n", read, MAX_FIRE_IC * AVGPOOL_C);
+    // }
+    fclose(f);
+
+    // Copy into 2D fixed-point array
     int idx = 0;
-    for (int ic = 0; ic < 512; ic++) {
-        for (int oc = 0; oc < 10; oc++) {
-            dest[ic][oc] = fixed_point_t(conv10_weights_flat[idx++]);
+    for (int ic = 0; ic < MAX_FIRE_IC; ic++) {
+        for (int oc = 0; oc < AVGPOOL_C; oc++) {
+            #pragma HLS PIPELINE II=1
+            dest[ic][oc] = fixed_point_t(buffer[idx++]);
         }
     }
 }
 
-void load_fire_squeeze_weights(const weight_t* src, int IC, int SC,
-                                fixed_point_t dest[MAX_FIRE_IC][MAX_FIRE_SC]) {
+void load_fire_squeeze_weights(int IC, int SC,
+                                fixed_point_t dest[MAX_FIRE_IC][MAX_FIRE_SC],
+                                const char* filename) {
+    // int idx = 0;
+    // for (int ic = 0; ic < IC; ic++) {
+    //     for (int sc = 0; sc < SC; sc++) {
+    //         dest[ic][sc] = fixed_point_t(src[idx++]);
+    //     }
+    // }
+    FILE* f = fopen(filename, "rb");
+    if (!f) {
+        printf("Error: cannot open %s\n", filename);
+        return;
+    }
+
+    // Read raw bytes into a flat buffer
+    int8_t buffer[MAX_FIRE_IC * MAX_FIRE_SC];
+    size_t read = fread(buffer, sizeof(buffer[0]), IC * SC, f);
+    if (read != IC * SC) {
+        printf("Warning: only read %zu of %d weights\n", read, IC * SC);
+    }
+    fclose(f);
+
+    // Copy into 2D fixed-point array
     int idx = 0;
     for (int ic = 0; ic < IC; ic++) {
         for (int sc = 0; sc < SC; sc++) {
-            dest[ic][sc] = fixed_point_t(src[idx++]);
+            #pragma HLS PIPELINE II=1
+            dest[ic][sc] = fixed_point_t(buffer[idx++]);
         }
     }
 }
 
-void load_fire_expand1x1_weights(const weight_t* src, int SC, int EC,
-                                  fixed_point_t dest[MAX_FIRE_SC][MAX_FIRE_EC]) {
+void load_fire_expand1x1_weights(int SC, int EC,
+                                  fixed_point_t dest[MAX_FIRE_SC][MAX_FIRE_EC],
+                                    const char* filename) {
+    // int idx = 0;
+    // for (int sc = 0; sc < SC; sc++) {
+    //     for (int ec = 0; ec < EC; ec++) {
+    //         dest[sc][ec] = fixed_point_t(src[idx++]);
+    //     }
+    // }
+
+    FILE* f = fopen(filename, "rb");
+    if (!f) {
+        printf("Error: cannot open %s\n", filename);
+        return;
+    }
+
+    // Read raw bytes into a flat buffer
+    int8_t buffer[MAX_FIRE_SC * MAX_FIRE_EC];
+    size_t read = fread(buffer, sizeof(buffer[0]), SC * EC, f);
+    if (read != SC * EC) {
+        printf("Warning: only read %zu of %d weights\n", read, SC * EC);
+    }
+    fclose(f);
+
+    // Copy into 2D fixed-point array
     int idx = 0;
     for (int sc = 0; sc < SC; sc++) {
         for (int ec = 0; ec < EC; ec++) {
-            dest[sc][ec] = fixed_point_t(src[idx++]);
+            #pragma HLS PIPELINE II=1
+            dest[sc][ec] = fixed_point_t(buffer[idx++]);
         }
     }
 }
 
-void load_fire_expand3x3_weights(const weight_t* src, int SC, int EC,
-                                  fixed_point_t dest[3][3][MAX_FIRE_SC][MAX_FIRE_EC]) {
+void load_fire_expand3x3_weights(int SC, int EC,
+                                  fixed_point_t dest[3][3][MAX_FIRE_SC][MAX_FIRE_EC],
+                                    const char* filename) {
+    // int idx = 0;
+    // for (int kh = 0; kh < 3; kh++) {
+    //     for (int kw = 0; kw < 3; kw++) {
+    //         for (int sc = 0; sc < SC; sc++) {
+    //             for (int ec = 0; ec < EC; ec++) {
+    //                 dest[kh][kw][sc][ec] = fixed_point_t(src[idx++]);
+    //             }
+    //         }
+    //     }
+    // }
+    FILE* f = fopen(filename, "rb");
+    if (!f) {
+        printf("Error: cannot open %s\n", filename);
+        return;
+    }
+
+    // Read raw bytes into a flat buffer
+    int8_t buffer[3 * 3 * MAX_FIRE_SC * MAX_FIRE_EC];
+    size_t read = fread(buffer, sizeof(buffer[0]), 3 * 3 * SC * EC, f);
+    if (read != 3 * 3 * SC * EC) {
+        printf("Warning: only read %zu of %d weights\n", read, 3 * 3 * SC * EC);
+    }
+    fclose(f);
+
+    // Copy into 4D fixed-point array
     int idx = 0;
     for (int kh = 0; kh < 3; kh++) {
         for (int kw = 0; kw < 3; kw++) {
             for (int sc = 0; sc < SC; sc++) {
                 for (int ec = 0; ec < EC; ec++) {
-                    dest[kh][kw][sc][ec] = fixed_point_t(src[idx++]);
+                    #pragma HLS PIPELINE II=1
+                    dest[kh][kw][sc][ec] = fixed_point_t(buffer[idx++]);
                 }
             }
         }
@@ -251,44 +370,44 @@ void configure_layer(int layer, LayerConfig &config) {
 void load_fire_weights(int fire_id) {
     switch(fire_id) {
         case 2:
-            load_fire_squeeze_weights(fire2_squeeze_weights_flat, 96, 16, fire_squeeze_buf);
-            load_fire_expand1x1_weights(fire2_expand1x1_weights_flat, 16, 64, fire_expand1x1_buf);
-            load_fire_expand3x3_weights(fire2_expand3x3_weights_flat, 16, 64, fire_expand3x3_buf);
+            load_fire_squeeze_weights(96, 16, fire_squeeze_buf,"fire2_squeeze_weights_flat.bin");
+            load_fire_expand1x1_weights(16, 64, fire_expand1x1_buf,"fire2_expand1x1_weights_flat.bin");
+            load_fire_expand3x3_weights(16, 64, fire_expand3x3_buf,"fire2_expand3x3_weights_flat.bin");
             break;
         case 3:
-            load_fire_squeeze_weights(fire3_squeeze_weights_flat, 128, 16, fire_squeeze_buf);
-            load_fire_expand1x1_weights(fire3_expand1x1_weights_flat, 16, 64, fire_expand1x1_buf);
-            load_fire_expand3x3_weights(fire3_expand3x3_weights_flat, 16, 64, fire_expand3x3_buf);
+            load_fire_squeeze_weights(128, 16, fire_squeeze_buf,"fire3_squeeze_weights_flat.bin");
+            load_fire_expand1x1_weights(16, 64, fire_expand1x1_buf,"fire3_expand1x1_weights_flat.bin");
+            load_fire_expand3x3_weights(16, 64, fire_expand3x3_buf,"fire3_expand3x3_weights_flat.bin");
             break;
         case 4:
-            load_fire_squeeze_weights(fire4_squeeze_weights_flat, 128, 32, fire_squeeze_buf);
-            load_fire_expand1x1_weights(fire4_expand1x1_weights_flat, 32, 128, fire_expand1x1_buf);
-            load_fire_expand3x3_weights(fire4_expand3x3_weights_flat, 32, 128, fire_expand3x3_buf);
+            load_fire_squeeze_weights(128, 32, fire_squeeze_buf,"fire4_squeeze_weights_flat.bin");
+            load_fire_expand1x1_weights(32, 128, fire_expand1x1_buf,"fire4_expand1x1_weights_flat.bin");
+            load_fire_expand3x3_weights(32, 128, fire_expand3x3_buf,"fire4_expand3x3_weights_flat.bin");
             break;
         case 5:
-            load_fire_squeeze_weights(fire5_squeeze_weights_flat, 256, 32, fire_squeeze_buf);
-            load_fire_expand1x1_weights(fire5_expand1x1_weights_flat, 32, 128, fire_expand1x1_buf);
-            load_fire_expand3x3_weights(fire5_expand3x3_weights_flat, 32, 128, fire_expand3x3_buf);
+            load_fire_squeeze_weights(256, 32, fire_squeeze_buf,"fire5_squeeze_weights_flat.bin");
+            load_fire_expand1x1_weights(32, 128, fire_expand1x1_buf,"fire5_expand1x1_weights_flat.bin");
+            load_fire_expand3x3_weights(32, 128, fire_expand3x3_buf,"fire5_expand3x3_weights_flat.bin");
             break;
         case 6:
-            load_fire_squeeze_weights(fire6_squeeze_weights_flat, 256, 48, fire_squeeze_buf);
-            load_fire_expand1x1_weights(fire6_expand1x1_weights_flat, 48, 192, fire_expand1x1_buf);
-            load_fire_expand3x3_weights(fire6_expand3x3_weights_flat, 48, 192, fire_expand3x3_buf);
+            load_fire_squeeze_weights(256, 48, fire_squeeze_buf,"fire6_squeeze_weights_flat.bin");
+            load_fire_expand1x1_weights(48, 192, fire_expand1x1_buf,"fire6_expand1x1_weights_flat.bin");
+            load_fire_expand3x3_weights(48, 192, fire_expand3x3_buf,"fire6_expand3x3_weights_flat.bin");
             break;
         case 7:
-            load_fire_squeeze_weights(fire7_squeeze_weights_flat, 384, 48, fire_squeeze_buf);
-            load_fire_expand1x1_weights(fire7_expand1x1_weights_flat, 48, 192, fire_expand1x1_buf);
-            load_fire_expand3x3_weights(fire7_expand3x3_weights_flat, 48, 192, fire_expand3x3_buf);
+            load_fire_squeeze_weights(384, 48, fire_squeeze_buf,"fire7_squeeze_weights_flat.bin");
+            load_fire_expand1x1_weights(48, 192, fire_expand1x1_buf,"fire7_expand1x1_weights_flat.bin");
+            load_fire_expand3x3_weights(48, 192, fire_expand3x3_buf,"fire7_expand3x3_weights_flat.bin");
             break;
         case 8:
-            load_fire_squeeze_weights(fire8_squeeze_weights_flat, 384, 64, fire_squeeze_buf);
-            load_fire_expand1x1_weights(fire8_expand1x1_weights_flat, 64, 256, fire_expand1x1_buf);
-            load_fire_expand3x3_weights(fire8_expand3x3_weights_flat, 64, 256, fire_expand3x3_buf);
+            load_fire_squeeze_weights(384, 64, fire_squeeze_buf,"fire8_squeeze_weights_flat.bin");
+            load_fire_expand1x1_weights(64, 256, fire_expand1x1_buf,"fire8_expand1x1_weights_flat.bin");
+            load_fire_expand3x3_weights(64, 256, fire_expand3x3_buf,"fire8_expand3x3_weights_flat.bin");
             break;
         case 9:
-            load_fire_squeeze_weights(fire9_squeeze_weights_flat, 512, 64, fire_squeeze_buf);
-            load_fire_expand1x1_weights(fire9_expand1x1_weights_flat, 64, 256, fire_expand1x1_buf);
-            load_fire_expand3x3_weights(fire9_expand3x3_weights_flat, 64, 256, fire_expand3x3_buf);
+            load_fire_squeeze_weights(512, 64, fire_squeeze_buf,"fire9_squeeze_weights_flat.bin");
+            load_fire_expand1x1_weights(64, 256, fire_expand1x1_buf,"fire9_expand1x1_weights_flat.bin");
+            load_fire_expand3x3_weights(64, 256, fire_expand3x3_buf,"fire9_expand3x3_weights_flat.bin");
             break;
     }
 }
@@ -351,7 +470,7 @@ void execute_layer(
 // ============================================================================
 
 void squeezenet(
-    fixed_point_t input_image[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
+    fixed_point_t input_image[MAX_CONV_H * MAX_CONV_W *MAX_CONV1_IC],
     fixed_point_t final_output[AVGPOOL_C]
 ) {
     // Initialize weights on first call
@@ -365,7 +484,9 @@ void squeezenet(
     for (int h = 0; h < MAX_CONV_H; h++) {
         for (int w = 0; w < MAX_CONV_W; w++) {
             for (int c = 0; c < MAX_CONV1_IC; c++) {
-                buf1[h][w][c] = input_image[h][w][c];
+                #pragma HLS PIPELINE II=1
+                int idx = h * (MAX_CONV_W * MAX_CONV1_IC) + w * MAX_CONV1_IC + c;
+                buf1[h][w][c] = input_image[idx];
             }
         }
     }
