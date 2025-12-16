@@ -2,7 +2,7 @@
 #include "kernel.h"
 #include <cstdio>
 #include <cstdint>
-#include <weights.h>
+#include "weights.h"
 
 // ============================================================================
 // Helper functions to reshape flat arrays into multi-dimensional arrays
