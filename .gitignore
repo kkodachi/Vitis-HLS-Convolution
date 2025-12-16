@@ -1,8 +1,4 @@
-data/
-.DS_Store
-__pycache__/
-temp/
 .vscode/
-*.o
+__pycache__/
 dev/
-tb
+data/
