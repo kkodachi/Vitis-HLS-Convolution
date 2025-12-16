@@ -1,12 +1,6 @@
 #include "config.h"
 #include "kernel.h"
 
-#define MAX_FIRE_H 112
-#define MAX_FIRE_W 112
-#define MAX_FIRE_IC 512 // max input channels
-#define MAX_FIRE_SC 64 // max squeeze channels
-#define MAX_FIRE_EC 256 // max expand channels
-
 void conv1(
     bool enable,
     fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
