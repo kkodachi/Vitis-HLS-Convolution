@@ -286,7 +286,7 @@ bool areFloatsEqual(float a, float b, float epsilon = 1e-1f) {
 int main(){
     // Parameters below test conv1 -> maxpool1 -> fire2 in squeezenet.ipynb
 
-    // CONV TEST START
+    // CONV1 TEST START
     bool enable = true;
 
     int conv_H = 224;
@@ -337,13 +337,12 @@ int main(){
        }
    }
 
-   // conv3d(enable,conv_in,conv_w,conv_out,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
-   std::cout << "Calling conv kernel" << std::endl;
+   std::cout << "Calling conv1 kernel" << std::endl;
    conv1(enable,conv_in,conv_w,conv_out,conv_H,conv_W,conv_IC,conv_OC);
-   std::cout << "Calling conv golden" << std::endl;
+   std::cout << "Calling conv1 golden" << std::endl;
    conv3d_golden(enable,conv_in,conv_w,conv_golden,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
 
-   std::cout << "Comparing conv with golden" << std::endl;
+   std::cout << "Comparing conv1 with golden" << std::endl;
    int count = 0;
    for (int h = 0; h < CONV_H_OUT; h++){
        for (int w = 0; w < CONV_W_OUT; w++){
@@ -358,16 +357,16 @@ int main(){
        }
    }
    if (count != 0){
-       std::cout << "conv3d() does not match golden: " << count << "/" << (CONV_H_OUT * CONV_W_OUT * conv_OC) << " mismatches" << std::endl;
+       std::cout << "conv1() does not match golden: " << count << "/" << (CONV_H_OUT * CONV_W_OUT * conv_OC) << " mismatches" << std::endl;
    }
    else {
-       std::cout << "conv3d() matches golden" << std::endl;
+       std::cout << "conv1() matches golden" << std::endl;
    }
 
    delete[] conv_in;
    delete[] conv_w;
    delete[] conv_golden;
-    // CONV TEST END
+    // CONV1 TEST END
     
     // MAXPOOL TEST START
     // fixed_point_t mp_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
@@ -523,7 +522,6 @@ int main(){
     conv10(enable,conv10_in,conv10_w,conv10_out);
     std::cout << "Calling conv10 golden" << std::endl;
     conv10_golden(enable,conv10_in,conv10_w,conv10_g,conv10_H,conv10_W,conv10_IC,AVGPOOL_C);
- //    conv3d_golden(enable,conv10_in,conv10_w,conv10_golden,conv10_H,conv10_W,conv10_IC,AVGPOOL_C,1,1,0);
 
     count = 0;
     for (int i = 0; i < AVGPOOL_H; i++){
