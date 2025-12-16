@@ -67,14 +67,16 @@ void expand3(
 
     fixed_point_t line_buffer[3][MAX_FIRE_W];
     #pragma HLS ARRAY_PARTITION variable=line_buffer dim=1 complete
-    #pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 factor=3
+    #pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 factor=4
+//	#pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 complete
 
     fixed_point_t kernel[3][3];
     #pragma HLS ARRAY_PARTITION variable=kernel complete dim=1
     #pragma HLS ARRAY_PARTITION variable=kernel complete dim=2
 
     accum_t psum[MAX_FIRE_W];
-	#pragma HLS ARRAY_PARTITION variable=psum dim=1 factor=3
+	#pragma HLS ARRAY_PARTITION variable=psum dim=1 factor=4
+//	#pragma HLS ARRAY_PARTITION variable=psum dim=1 complete
 
     OC_LOOP:
 	for (int oc = 0; oc < EC; oc++) {

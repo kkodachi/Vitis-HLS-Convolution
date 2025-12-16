@@ -10,6 +10,8 @@ void maxpool(
     int IC     // input channels
 )
 {
+	if (!enable) return;
+
     const int K = 3;
     const int S = 2;
     const int P = 0;
@@ -19,10 +21,12 @@ void maxpool(
 
     fixed_point_t line_buffer[3][MAX_FIRE_W];
     #pragma HLS ARRAY_PARTITION variable=line_buffer dim=1 complete
-    #pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 factor=3
+    #pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 factor=4
+//	#pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 complete
 
     fixed_point_t local_output[MAX_FIRE_W];
-    #pragma HLS ARRAY_PARTITION variable=local_output dim=1 factor=3
+//	#pragma HLS ARRAY_PARTITION variable=local_output dim=1 complete
+    #pragma HLS ARRAY_PARTITION variable=local_output dim=1 factor=4
 
     IC_LOOP:
     for (int ic = 0; ic < IC;ic++){
