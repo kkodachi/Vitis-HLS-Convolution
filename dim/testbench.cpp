@@ -94,7 +94,7 @@ void conv10_golden(
                     #pragma HLS UNROLL factor=4
                     sum += activations[h][w][ic] * weights[ic][oc];
                 }
-                output[h][w][oc] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
+                output[h][w][oc] = (fixed_point_t)sum;
             }
         }
     }
