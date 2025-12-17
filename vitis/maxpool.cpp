@@ -1,99 +1,132 @@
 #include "kernel.h"
+#include "config.h"
 
 void maxpool(
     bool enable,
-    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t output[MAX_H * MAX_W * MAX_IC],
+    const fixed_point_t activations[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
     int H,      // input height
     int W,      // input width
-    int IC,     // input channels
-    int K,      // kernel size
-    int stride  // stride
+    int IC     // input channels
 )
 {
-    if (!enable) return;
+	if (!enable) return;
 
-    #pragma HLS INLINE off
+    const int K = 3;
+    const int S = 2;
+    const int P = 0;
 
-    #pragma HLS INTERFACE s_axilite port=enable
-    #pragma HLS INTERFACE m_axi port=activations offset=slave bundle=gmem0 depth=524288
-    #pragma HLS INTERFACE m_axi port=output      offset=slave bundle=gmem1 depth=524288
+    int H_OUT = (H + 2*P - K)/S + 1;
+    int W_OUT = (W + 2*P - K)/S + 1;
 
-    #pragma HLS INTERFACE s_axilite port=activations
-    #pragma HLS INTERFACE s_axilite port=output
-    #pragma HLS INTERFACE s_axilite port=H
-    #pragma HLS INTERFACE s_axilite port=W
-    #pragma HLS INTERFACE s_axilite port=IC
-    #pragma HLS INTERFACE s_axilite port=K
-    #pragma HLS INTERFACE s_axilite port=stride
-    #pragma HLS INTERFACE s_axilite port=return
+    fixed_point_t line_buffer[3][MAX_FIRE_W];
+    #pragma HLS ARRAY_PARTITION variable=line_buffer dim=1 complete
+    #pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 factor=4
+//	#pragma HLS ARRAY_PARTITION variable=line_buffer dim=2 complete
 
-    // clamp for safety
-    if (H > MAX_H) H = MAX_H;
-    if (W > MAX_W) W = MAX_W;
-    if (IC > MAX_IC) IC = MAX_IC;
+    fixed_point_t local_output[MAX_FIRE_W];
+//	#pragma HLS ARRAY_PARTITION variable=local_output dim=1 complete
+    #pragma HLS ARRAY_PARTITION variable=local_output dim=1 factor=4
 
-    const int outH = (H - K) / stride + 1;
-    const int outW = (W - K) / stride + 1;
-
-    fixed_point_t window[MAX_K * MAX_K * MAX_IC];
-    #pragma HLS ARRAY_PARTITION variable=window cyclic factor=4 dim=1
-
-    H_LOOP:
-    for (int oh = 0; oh < outH; oh++){
-        #pragma HLS LOOP_TRIPCOUNT min=1 max=32
-        
-        W_LOOP:
-        for (int ow = 0; ow < outW; ow++){
-            #pragma HLS LOOP_TRIPCOUNT min=1 max=32
-            
-            // top left of window in the input
-            const int h0 = oh * stride;
-            const int w0 = ow * stride;
-
-            CH_LOAD:
-            for (int kh = 0; kh < K; kh++) {
-                for (int kw = 0; kw < K; kw++) {
-                    for (int c = 0; c < IC; c++) {
-                        #pragma HLS PIPELINE II=1
-                        #pragma HLS LOOP_TRIPCOUNT min=3 max=512
-                        
-                        int ih = h0 + kh;
-                        int iw = w0 + kw;
-
-                        int local_idx = c * K * K + kh * K + kw;
-                        int idx = ih * (MAX_W * MAX_IC) + iw * MAX_IC + c;
-
-                        if (ih < H && iw < W)
-                            window[local_idx] = activations[idx];
-                        else
-                            window[local_idx] = 0; // padding
-                    }
+    IC_LOOP:
+    for (int ic = 0; ic < IC;ic++){
+        OH_LOOP:
+        for (int oh = 0; oh < H_OUT; oh++){
+            LOAD_LINES:
+            for (int k = 0; k < K; k++) {
+                int ih = oh * S + k;
+                for (int w = 0; w < W; w++) {
+                    #pragma HLS PIPELINE II=1
+                    line_buffer[k][w] = (ih < H && w < W) ? activations[ih][w][ic] : (fixed_point_t)0;
                 }
             }
-
-            CH_LOOP:
-            for (int c = 0; c < IC; c++) {
-                #pragma HLS LOOP_TRIPCOUNT min=3 max=512
-                
-                // init to first element
-                fixed_point_t cur_max = window[c * K * K];
+            OW_LOOP:
+            for (int ow = 0; ow < W_OUT; ow++) {
+                #pragma HLS PIPELINE II=1
+                fixed_point_t max_val = line_buffer[0][ow * S];
 
                 MAX_LOOP:
-                for (int i = 1; i < K * K; i++) {
-                    #pragma HLS PIPELINE II=1
-                    #pragma HLS UNROLL factor=2
-                    
-                    int local_idx = c * K * K + i;
-                    if (window[local_idx] > cur_max)
-                        cur_max = window[local_idx];
+                for (int kh = 0; kh < K; kh++) {
+                    #pragma HLS UNROLL
+                    for (int kw = 0; kw < K; kw++) {
+                        #pragma HLS UNROLL
+                        int iw = ow * S + kw;
+                        if (iw < W) {
+                            fixed_point_t val = line_buffer[kh][iw];
+                            if (val > max_val) {
+                                max_val = val;
+                            }
+                        }
+                    }
                 }
-
-                // write to output
-                int out_idx = oh * (MAX_W * MAX_IC) + ow * MAX_IC + c;
-                output[out_idx] = cur_max;
+                local_output[ow] = max_val;
             }
-
+            WB_LOOP: 
+            for (int ow = 0; ow < W_OUT; ow++) {
+				#pragma HLS PIPELINE II=1
+                output[oh][ow][ic] = local_output[ow];
+            }
         }
     }
 }
+
+// void maxpool(
+//     bool enable,
+//     const fixed_point_t activations[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+//     fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+//     int H,      // input height
+//     int W,      // input width
+//     int IC     // input channels
+// )
+// {
+//     if (!enable) return;
+//     fixed_point_t output_local[MAX_FIRE_H][MAX_FIRE_W];
+//     fixed_point_t window[3][3];
+//     #pragma HLS ARRAY_PARTITION variable=window complete dim=0
+
+//     const int K = 3;
+//     const int S = 2;
+//     const int P = 0;
+
+//     int H_OUT = (H + 2*P - K)/S + 1;
+//     int W_OUT = (W + 2*P - K)/S + 1;
+
+//     IC_LOOP:
+//     for (int ic = 0; ic < IC;ic++){
+//         OH_LOOP:
+//         for (int oh = 0; oh < H_OUT; oh++){
+//             OW_LOOP:
+//             for (int ow = 0; ow < W_OUT; ow++){
+//                 LOAD_KH:
+//                 for (int kh = 0; kh < K; kh++) {
+//                     LOAD_KW:
+//                     for (int kw = 0; kw < K; kw++) {
+//                         #pragma HLS PIPELINE II=1
+//                         int ih = oh * S + kh;
+//                         int iw = ow * S + kw;
+//                         window[kh][kw] = activations[ih][iw][ic];
+//                     }
+//                 }
+                
+//                 fixed_point_t max_val = window[0][0];
+//                 KH_LOOP:
+//                 for (int kh = 0; kh < K; kh++) {
+//                     #pragma HLS UNROLL
+//                     KW_LOOP:
+//                     for (int kw = 0; kw < K; kw++) {
+//                         #pragma HLS UNROLL
+//                         if (window[kh][kw] > max_val)
+//                             max_val = window[kh][kw];
+//                     }
+//                 }
+//                 output_local[oh][ow] = max_val;
+//             }
+//         }
+//         for (int oh = 0; oh < H_OUT; oh++){
+//             for (int ow = 0; ow < W_OUT; ow++){
+//                 #pragma HLS PIPELINE II=1
+//                 output[oh][ow][ic] = output_local[oh][ow];
+//             }
+//         }
+//     }
+// }

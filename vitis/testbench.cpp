@@ -1,399 +1,591 @@
+#include "kernel.h"
+#include "config.h"
+
 #include <iostream>
 #include <cstdlib>
-#include "kernel.h"
-#include "algorithm"
-
-//void conv3d_golden(
-//    fixed_point_t input[MAX_H * MAX_W * MAX_IC],
-//    fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
-//    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
-//    int H, int W, int IC, int OC, int K, int S, int P
-//) {
-//    for (int oc = 0; oc < OC; oc++) {
-//        for (int h = 0; h < H; h++) {
-//            for (int w = 0; w < W; w++) {
-//                accum_t sum = 0;
-//                for (int ic = 0; ic < IC; ic++) {
-//                    for (int kh = 0; kh < K; kh++) {
-//                        for (int kw = 0; kw < K; kw++) {
-//                            int in_h = h * S + kh - P;
-//                            int in_w = w * S + kw - P;
-//                            if (in_h >= 0 && in_h < H && in_w >= 0 && in_w < W) {
-//                                int in_idx = ic + IC * (in_w + W * in_h);
-//                                int wt_idx = ic + IC * (kw + K * (kh + K * oc));
-//                                sum += input[in_idx] * weights[wt_idx];
-//                            }
-//                        }
-//                    }
-//                }
-//                int out_idx = oc + OC * (w + W * h);
-//                output[out_idx] = (fixed_point_t)sum;
-//            }
-//        }
-//    }
-//}
-
-void conv3d_golden(
-    fixed_point_t input[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
-    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
-    int H, int W, int IC, int OC, int K, int S, int P
-) {
-    for (int oc = 0; oc < OC; oc++) {
-        for (int h = 0; h < H; h++) {
-            for (int w = 0; w < W; w++) {
-
-                accum_t sum_total = 0;
-
-                for (int ic = 0; ic < IC; ic++) {
-                    for (int kh = 0; kh < K; kh++) {
-                        for (int kw = 0; kw < K; kw++) {
-
-                            int in_h = h * S + kh - P;
-                            int in_w = w * S + kw - P;
-
-                            if (in_h < 0 || in_h >= H || in_w < 0 || in_w >= W)
-                                continue;
-                            int wt_idx =
-                                kh * (K * MAX_IC * MAX_OC)
-                              + kw * (MAX_IC * MAX_OC)
-                              + ic * (MAX_OC)
-                              + oc;
-
-                            int in_idx =
-                                in_h * (MAX_W * MAX_IC) + in_w * (MAX_IC) + ic;
-
-                            sum_total += input[in_idx] * weights[wt_idx];
-                        }
-                    }
-                }
-
-                int out_idx = h * (MAX_W * MAX_OC) + w * (MAX_OC) + oc;
-                output[out_idx] = (fixed_point_t)sum_total;
-            }
-        }
-    }
-}
-
-
-void maxpool_golden(
-    fixed_point_t input[MAX_H*MAX_W*MAX_IC],
-    fixed_point_t output[MAX_H*MAX_W*MAX_IC],
-    int H, int W, int C,
-    int K, int S
-) {
-    const int outH = (H - K) / S + 1;
-    const int outW = (W - K) / S + 1;
-
-    for (int oh = 0; oh < outH; oh++){
-        for (int ow = 0; ow < outW; ow++){
-            // top left of window in the input
-            const int h0 = oh * S;
-            const int w0 = ow * S;
-            for (int c = 0; c < C; c++){
-                // index of first element in window
-                int idx0 = h0 * (MAX_W * MAX_IC) + w0 * (MAX_IC) + c;
-                fixed_point_t cur_max = input[idx0];
-                for (int kh = 0; kh < K; kh++) {
-                    for (int kw = 0; kw < K; kw++) {
-                        int ih = h0 + kh;
-                        int iw = w0 + kw;
-                        if (ih < H && iw < W) {
-                            int idx = ih * (MAX_W * MAX_IC) + iw * (MAX_IC) + c;
-                            fixed_point_t val = input[idx];
-                            if (val > cur_max) cur_max = val;
-                        }
-                    }
-                }
-
-                // write pooled value to output
-                int out_idx = oh*(MAX_W * MAX_IC) + ow*(MAX_IC) + c;
-                output[out_idx] = cur_max;
-            }
-        }
-    }
-}
+#include <assert.h>
+#include <cmath>
 
 void avgpool_golden(
-    fixed_point_t input[MAX_H*MAX_W*MAX_IC],
-    fixed_point_t output[MAX_H*MAX_W*MAX_IC],
-    int H, int W, int C,
-    int K, int S
-){
+    bool enable,
+    const fixed_point_t activations[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C],
+    fixed_point_t output[AVGPOOL_C],
+    int H,      // input height
+    int W,      // input width
+    int IC     // input channels
+)
+{
+    if (!enable) return;
 
-    const int outH = (H - K) / S + 1;
-    const int outW = (W - K) / S + 1;
+    for (int ic = 0; ic < IC; ic++) {
+        accum_t sum = 0;
 
-    for (int oh = 0; oh < outH; oh++){
-        for (int ow = 0; ow < outW; ow++){
-            const int h0 = oh * S;
-            const int w0 = ow * S;
+        for (int h = 0; h < H; h++) {
+            for (int w = 0; w < W; w++) {
+                sum += activations[h][w][ic];
+            }
+        }
+        output[ic] = sum / (H * W);
+    }
+}
 
-            CH_LOOP:
-            for (int c = 0; c < C; c++){
-                accum_t accum = 0;
+void maxpool_golden(
+    bool enable,
+    const fixed_point_t activations[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    int H,      // input height
+    int W,      // input width
+    int IC     // input channels
+)
+{
+    if (!enable) return;
+
+    const int K = 3;
+    const int S = 2;
+    const int P = 0;
+
+    int H_OUT = (H + 2*P - K)/S + 1;
+    int W_OUT = (W + 2*P - K)/S + 1;
+
+    for (int ic = 0; ic < IC;ic++){
+        for (int oh = 0; oh < H_OUT; oh++){
+            for (int ow = 0; ow < W_OUT; ow++){
+                fixed_point_t max_val = activations[oh*S][ow*S][ic];
                 for (int kh = 0; kh < K; kh++) {
                     for (int kw = 0; kw < K; kw++) {
-                        int ih = h0 + kh;
-                        int iw = w0 + kw;
-                        if (ih < H && iw < W) {
-                            int idx = ih * (MAX_W * MAX_IC) + iw * (MAX_IC) + c;
-                            accum += input[idx];
+                        int ih = oh * S + kh;
+                        int iw = ow * S + kw;
+
+                        fixed_point_t v = activations[ih][iw][ic];
+                        if (v > max_val)
+                            max_val = v;
+                    }
+                }
+                output[oh][ow][ic] = max_val;
+            }
+        }
+    }
+}
+
+void conv10_golden(
+    bool enable,
+    fixed_point_t activations[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    fixed_point_t weights[MAX_FIRE_IC][AVGPOOL_C],
+    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    fixed_point_t output[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C],
+
+    int H,      // input height
+    int W,      // input width
+    int IC,     // input channels
+    int OC     // output channels
+)
+{
+    const int K = 1;    // kernel size
+    const int S = 1;    // stride
+    const int P = 0;    // padding
+    int H_OUT = (H + 2*P - K)/S + 1; // 56
+    int W_OUT = (W + 2*P - K)/S + 1; // 56
+
+    for (int h = 0; h < H; h++) {
+        for (int w = 0; w < W; w++) {
+            for (int oc = 0; oc < OC; oc++) {
+                accum_t sum = 0;
+                for (int ic = 0; ic < IC; ic++) {
+                    #pragma HLS UNROLL factor=4
+                    sum += activations[h][w][ic] * weights[ic][oc];
+                }
+                output[h][w][oc] = (fixed_point_t)sum;
+            }
+        }
+    }
+}
+
+void conv3d_golden(
+    bool enable,
+    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
+    fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV1_IC][MAX_CONV1_OC],
+    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+
+    int H,      // input height
+    int W,      // input width
+    int IC,     // input channels
+    int OC,     // output channels
+    int K,      // kernel size
+    int S,      // stride
+    int P       // padding
+)
+{
+    if (!enable) return;
+    int H_OUT = (H + 2*P - K) / S + 1;
+    int W_OUT = (W + 2*P - K) / S + 1;
+
+    assert(H_OUT <= MAX_FIRE_H);
+    assert(W_OUT <= MAX_FIRE_W);
+    assert(OC <= MAX_FIRE_IC);
+    assert(IC <= MAX_FIRE_IC);
+
+    for (int oc = 0; oc < OC; oc++) {
+        for (int oh = 0; oh < H_OUT; oh++) {
+            for (int ow = 0; ow < W_OUT; ow++) {
+                
+                accum_t sum = 0;
+
+                for (int kh = 0; kh < K; kh++) {
+                    for (int kw = 0; kw < K; kw++) {
+                        for (int ic = 0; ic < IC; ic++) {
+
+                            int ih = oh * S + kh - P;
+                            int iw = ow * S + kw - P;
+
+                            fixed_point_t val = 0;
+                            // zero-padding
+                            if (ih >= 0 && ih < H && iw >= 0 && iw < W) {
+                                val = activations[ih][iw][ic];
+                            }
+
+                            sum += val * weights[kh][kw][ic][oc];
                         }
                     }
                 }
 
-                // write pooled value to output
-                int out_idx = oh*(MAX_W * MAX_IC) + ow*(MAX_IC) + c;
-                output[out_idx] = (fixed_point_t)(accum / (K * K));
+                output[oh][ow][oc] = (fixed_point_t)sum;
             }
         }
     }
 }
 
-void relu_golden(
-    fixed_point_t input[MAX_H*MAX_W*MAX_IC],
-    int H, int W, int C
-){
-    for (int h = 0; h < H; h++){
-        for (int w = 0; w < W; w++){
-            for (int c = 0; c < C; c++){
-                #pragma HLS PIPELINE II=1
-                int idx = h * (MAX_W * MAX_IC) + w * (MAX_IC) + c;
-                if (input[idx] < 0) input[idx] = 0;
-            }
-        }
-    }
-}
 
-void fire_module_golden(
-    fixed_point_t input[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t squeeze_weights[1 * 1 * MAX_IC * MAX_OC],
-    fixed_point_t expand1x1_weights[1 * 1 * MAX_IC * MAX_OC],
-    fixed_point_t expand3x3_weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
-    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
-    int H, int W, int IC, int squeeze_ch, int expand_ch
-){
-    static fixed_point_t squeeze_out[MAX_H * MAX_W * MAX_IC];
-    static fixed_point_t expand1x1_out[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t expand3x3_out[MAX_H * MAX_W * MAX_OC];
 
-    // squeeze: 1x1 conv
-    conv3d_golden(input, squeeze_weights, squeeze_out, H, W, IC, squeeze_ch, 1, 1, 0);
-    // relu after squeeze
-    relu_golden(squeeze_out, H, W, squeeze_ch);
-
-    // expand 1x1: 1x1 conv
-    conv3d_golden(squeeze_out, expand1x1_weights, expand1x1_out, H, W, squeeze_ch, expand_ch, 1, 1, 0);
-
-    // expand 3x3: 3x3 conv with pad=1
-    conv3d_golden(squeeze_out, expand3x3_weights, expand3x3_out, H, W, squeeze_ch, expand_ch, 3, 1, 1);
-
-    // concatenate expand1x1 and expand3x3 along channel dimension
-    for (int h = 0; h < H; h++){
-        for (int w = 0; w < W; w++){
-            // first half: expand1x1
-            for (int c = 0; c < expand_ch; c++){
-                int idx_in = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
-                int idx_out = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
-                output[idx_out] = expand1x1_out[idx_in];
-            }
-            // second half: expand3x3
-            for (int c = 0; c < expand_ch; c++){
-                int idx_in = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
-                int idx_out = h * (MAX_W * MAX_OC) + w * (MAX_OC) + expand_ch + c;
-                output[idx_out] = expand3x3_out[idx_in];
-            }
-        }
-    }
-
-    // relu on concatenated output
-    relu_golden(output, H, W, expand_ch * 2);
-}
-
-void compare(
-    fixed_point_t golden[MAX_H * MAX_W * MAX_OC],
-    fixed_point_t kernel[MAX_H * MAX_W * MAX_OC],
-    int H, int W, int OC
-) {
-    int count = 0;
+void squeeze_golden(
+    const fixed_point_t input[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    const fixed_point_t weights[MAX_FIRE_IC][MAX_FIRE_SC],
+    fixed_point_t squeeze_output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_SC],
+    int H, int W, int IC, int SC
+)
+{
     for (int h = 0; h < H; h++) {
         for (int w = 0; w < W; w++) {
-            for (int c = 0; c < OC; c++) {
-                int idx = h * (MAX_W * MAX_OC) + w * (MAX_OC) + c;
-                if (golden[idx] != kernel[idx] && count < 5) {
-                    std::cout << "Mismatch at (h=" << h 
-                              << ", w=" << w 
-                              << ", c=" << c << "): "
-                              << golden[idx] << " != " 
-                              << kernel[idx] << std::endl;
+            for (int sc = 0; sc < SC; sc++) {
+                accum_t sum = 0;
+                for (int ic = 0; ic < IC; ic++) {
+                    sum += input[h][w][ic] * weights[ic][sc];
+                }
+                squeeze_output[h][w][sc] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
+            }
+        }
+    }
+}
+
+void expand1_golden(
+    const fixed_point_t input[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_SC],
+    const fixed_point_t expand1x1_weights[MAX_FIRE_SC][MAX_FIRE_EC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    int H, int W, int SC, int EC
+)
+{
+    for (int h = 0; h < H; h++) {
+        for (int w = 0; w < W; w++) {
+            for (int ec = 0; ec < EC; ec++){    
+                accum_t sum = 0;
+                for (int sc = 0; sc < SC; sc++) {
+                    sum += input[h][w][sc] * expand1x1_weights[sc][ec];
+                }
+                output[h][w][ec] = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
+            }
+        }
+    }
+}
+
+void expand3_golden(
+    const fixed_point_t input[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_SC],
+    const fixed_point_t expand3x3_weights[3][3][MAX_FIRE_SC][MAX_FIRE_EC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    int H, int W, int SC, int EC, int offset
+)
+{
+    const int K = 3;
+    const int S = 1;
+    const int P = 1;
+
+    int H_OUT = (H + 2*P - K)/S + 1;
+    int W_OUT = (W + 2*P - K)/S + 1;
+
+    for (int ec = 0; ec < EC; ec++) {
+        for (int h = 0; h < H_OUT; h++) {
+            for (int w = 0; w < W_OUT; w++) {
+
+                accum_t sum = 0;      // must accumulate across SC
+
+                for (int sc = 0; sc < SC; sc++) {
+                    for (int kh = 0; kh < K; kh++) {
+                        for (int kw = 0; kw < K; kw++) {
+                            int h_in = h * S + kh - P;
+                            int w_in = w * S + kw - P;
+
+                            fixed_point_t val = 0;
+                            if (h_in >= 0 && h_in < H &&
+                                w_in >= 0 && w_in < W)
+                            {
+                                val = input[h_in][w_in][sc];
+                            }
+
+                            sum += val * expand3x3_weights[kh][kw][sc][ec];
+                        }
+                    }
+                }
+
+                fixed_point_t relu = (sum > 0) ? (fixed_point_t)sum : (fixed_point_t)0;
+                output[h][w][offset + ec] = relu;
+            }
+        }
+    }
+}
+
+void fire_golden(
+    bool enable,
+    const fixed_point_t input[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    const fixed_point_t squeeze_weights[MAX_FIRE_IC][MAX_FIRE_SC],
+    const fixed_point_t expand1x1_weights[MAX_FIRE_SC][MAX_FIRE_EC],
+    const fixed_point_t expand3x3_weights[3][3][MAX_FIRE_SC][MAX_FIRE_EC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
+    int H,
+    int W,
+    int IC,
+    int SC, // squeeze channels
+    int EC // expand channels
+)
+{
+    if (!enable) return;
+
+    fixed_point_t squeeze_output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_SC];
+    // #pragma HLS ARRAY_PARTITION variable=squeeze_output cyclic factor=8 dim=3
+
+    // squeeze 1x1 conv + fused ReLU
+    // squeeze(input,squeeze_weights,squeeze_output,H,W,IC,SC);
+    squeeze_golden(input,squeeze_weights,squeeze_output,H,W,IC,SC);
+    
+    // expand 1x1 conv + fused ReLU, writes directly to output
+    // expand1(squeeze_output,expand1x1_weights,output,H,W,SC,EC);
+    expand1_golden(squeeze_output,expand1x1_weights,output,H,W,SC,EC);
+
+    // squeeze 3x3 conv + fused ReLU, writes directly to output
+    // expand3(squeeze_output,expand3x3_weights,output,H,W,SC,EC,EC);
+    expand3_golden(squeeze_output,expand3x3_weights,output,H,W,SC,EC,EC);
+}
+
+// bool areFloatsEqual(float a, float b, float epsilon = 1e-6f) {
+//     return std::fabs(a - b) < epsilon;
+// }
+bool areFloatsEqual(float a, float b, float epsilon = 1e-1f) {
+    float diff = std::fabs(a - b);
+    float maxVal = std::max(std::fabs(a), std::fabs(b));
+    return diff <= epsilon * maxVal;
+}
+
+int main(){
+    // Parameters below test conv1 -> maxpool1 -> fire2 in squeezenet.ipynb
+
+    // CONV1 TEST START
+    bool enable = true;
+
+    int conv_H = 224;
+    int conv_W = 224;
+    int conv_IC = 3;
+
+    int conv_OC = 96;
+    int conv_K = 7;
+    int conv_S = 2;
+    int conv_P = 3;
+
+    const int CONV_H_OUT = (conv_H + 2*conv_P - conv_K)/conv_S + 1; // 112
+    const int CONV_W_OUT = (conv_W + 2*conv_P - conv_K)/conv_S + 1; // 112
+
+    // std::cout << "CONV_H_OUT: " << CONV_H_OUT << " CONV_W_OUT: " << CONV_W_OUT << std::endl; 
+
+    // fixed_point_t conv_in[MAX_CONV_H][MAX_CONV_W][MAX_CONV_IC];
+    // fixed_point_t conv_w[MAX_CONV_K][MAX_CONV_K][MAX_CONV_IC][MAX_CONV_OC];
+    // // fixed_point_t conv_out[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC];
+    // // fixed_point_t conv_golden[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC];
+    // fixed_point_t conv_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    // fixed_point_t conv_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+
+   auto conv_in = new fixed_point_t[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC];
+   auto conv_w = new fixed_point_t[MAX_CONV_K][MAX_CONV_K][MAX_CONV1_IC][MAX_CONV1_OC];
+   auto conv_out = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+   auto conv_golden = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+//
+//    // randomize input
+   for (int h = 0; h < conv_H; h++){
+       for (int w = 0; w < conv_W; w++){
+           for (int c = 0; c < conv_IC; c++){
+               int steps = std::rand() % 256;  // 8-bit range 0 to 255
+               conv_in[h][w][c] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+           }
+       }
+   }
+
+   // randomize weights
+   for (int kh = 0; kh < conv_K; kh++){
+       for (int kw = 0; kw < conv_K; kw++){
+           for (int ic = 0; ic < conv_IC; ic++){
+               for (int oc = 0; oc < conv_OC; oc++){
+                   int steps = std::rand() % 256;  // 8-bit range 0 to 255
+                   conv_w[kh][kw][ic][oc] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+               }
+           }
+       }
+   }
+
+   std::cout << "Calling conv1 kernel" << std::endl;
+   conv1(enable,conv_in,conv_w,conv_out,conv_H,conv_W,conv_IC,conv_OC);
+   std::cout << "Calling conv1 golden" << std::endl;
+   conv3d_golden(enable,conv_in,conv_w,conv_golden,conv_H,conv_W,conv_IC,conv_OC,conv_K,conv_S,conv_P);
+
+   std::cout << "Comparing conv1 with golden" << std::endl;
+   int count = 0;
+   for (int h = 0; h < CONV_H_OUT; h++){
+       for (int w = 0; w < CONV_W_OUT; w++){
+           for (int oc = 0; oc < conv_OC; oc++){
+               if (conv_out[h][w][oc] != conv_golden[h][w][oc]){
+                   if (count < 5){
+                       std::cout << "Mismatch at h, w, oc: " << h << " " << w << " " << oc << ", kernel: " << conv_out[h][w][oc] << " golden: " << conv_golden[h][w][oc] << std::endl;
+                   }
+                   count++;
+               }
+           }
+       }
+   }
+   if (count != 0){
+       std::cout << "conv1() does not match golden: " << count << "/" << (CONV_H_OUT * CONV_W_OUT * conv_OC) << " mismatches" << std::endl;
+   }
+   else {
+       std::cout << "conv1() matches golden" << std::endl;
+   }
+
+   delete[] conv_in;
+   delete[] conv_w;
+   delete[] conv_golden;
+    // CONV1 TEST END
+    
+    // MAXPOOL TEST START
+    // fixed_point_t mp_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    // fixed_point_t mp_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    auto mp_out = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+    auto mp_golden = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+
+    std::cout << "Calling maxpool kernel" << std::endl;
+    maxpool(enable,conv_out,mp_out,CONV_H_OUT,CONV_W_OUT,conv_OC);
+    std::cout << "Calling maxpool golden" << std::endl;
+    maxpool_golden(enable,conv_out,mp_golden,CONV_H_OUT,CONV_W_OUT,conv_OC);
+
+    delete[] conv_out;
+
+    const int MP_K = 3;
+    const int MP_S = 2;
+    const int MP_H_OUT = (CONV_H_OUT - MP_K) / MP_S + 1;
+    const int MP_W_OUT = (CONV_W_OUT - MP_K) / MP_S + 1;
+    const int MP_C_OUT = conv_OC;
+
+    std::cout << "Comparing maxpool with golden" << std::endl;
+    count = 0;
+    for (int h = 0; h < MP_H_OUT; h++){
+        for (int w = 0; w < MP_W_OUT; w++){
+            for (int oc = 0; oc < MP_C_OUT; oc++){
+                if (mp_out[h][w][oc] != mp_golden[h][w][oc]){
+                    if (count < 5){
+                        std::cout << "Mismatch at h, w, oc: " << h << " " << w << " " << oc << ", kernel: " << mp_out[h][w][oc] << " golden: " << mp_golden[h][w][oc] << std::endl;
+                    }
                     count++;
                 }
             }
         }
     }
-    if (count == 0) std::cout << "Kernel matches golden results" << std::endl;
-    else std::cout << "Mismatches: " << count << std::endl;
+    if (count != 0){
+        std::cout << "maxpool() does not match golden: " << count << "/" << (MP_H_OUT * MP_W_OUT * conv_OC) << " mismatches" << std::endl;
+    }
+    else {
+        std::cout << "maxpool() matches golden" << std::endl;
+    }
+
+    delete[] mp_golden;
+    // MAXPOOL TEST END
+    
+    // FIRE TEST START
+    // int FIRE_IC = 96;
+   const int FIRE_IC = conv_OC;
+   int FIRE_SC = 16;
+   int FIRE_EC = 64;
+
+   const int FIRE_OH = MP_H_OUT;
+   const int FIRE_OW = MP_W_OUT;
+   const int FIRE_OC = 2 * FIRE_EC;
+
+   // fixed_point_t squeeze_weights[MAX_FIRE_IC][MAX_FIRE_SC];
+   // fixed_point_t expand1x1_weights[MAX_FIRE_SC][MAX_FIRE_EC];
+   // fixed_point_t expand3x3_weights[3][3][MAX_FIRE_SC][MAX_FIRE_EC];
+   // fixed_point_t fire_out[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+   // fixed_point_t f_golden[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+
+   auto squeeze_weights = new fixed_point_t[MAX_FIRE_IC][MAX_FIRE_SC];
+   auto expand1x1_weights = new fixed_point_t[MAX_FIRE_SC][MAX_FIRE_EC];
+   auto expand3x3_weights = new fixed_point_t[3][3][MAX_FIRE_SC][MAX_FIRE_EC];
+   auto fire_out = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+   auto f_golden = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC];
+
+   // randomize squeeze weights
+   for (int ic = 0; ic < FIRE_IC; ic++){
+       for (int sc = 0; sc < FIRE_SC; sc++){
+           int steps = std::rand() % 256;  // 8-bit range 0 to 255
+           squeeze_weights[ic][sc] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+       }
+   }
+
+   // randomize expand weights
+   for (int sc = 0; sc < FIRE_SC; sc++){
+       for (int ec = 0; ec < FIRE_EC; ec++){
+           int steps = std::rand() % 256;  // 8-bit range 0 to 255
+           expand1x1_weights[sc][ec] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+           for (int i = 0; i < 3; i++){
+               for (int j = 0; j < 3; j++){
+                   steps = std::rand() % 256;  // 8-bit range 0 to 255
+                   expand3x3_weights[i][j][sc][ec] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+               }
+           }
+       }
+   }
+
+   fire(enable,mp_out,squeeze_weights,expand1x1_weights,expand3x3_weights,fire_out,MP_H_OUT,MP_W_OUT,FIRE_IC,FIRE_SC,FIRE_EC);
+   fire_golden(enable,mp_out,squeeze_weights,expand1x1_weights,expand3x3_weights,f_golden,MP_H_OUT,MP_W_OUT,FIRE_IC,FIRE_SC,FIRE_EC);
+
+   delete[] mp_out;
+   delete[] squeeze_weights;
+   delete[] expand1x1_weights;
+   delete[] expand3x3_weights;
+
+   std::cout << "Comparing fire with golden" << std::endl;
+   count = 0;
+   for (int h = 0; h < FIRE_OH; h++){
+       for (int w = 0; w < FIRE_OW; w++){
+           for (int oc = 0; oc < FIRE_OC; oc++){
+               // if (areFloatsEqual(fire_out[h][w][oc],f_golden[h][w][oc])){
+               if (fire_out[h][w][oc] != f_golden[h][w][oc]){
+                   if (count < 5){
+                       std::cout << "Mismatch at h, w, oc: " << h << " " << w << " " << oc << ", kernel: " << fire_out[h][w][oc] << " golden: " << f_golden[h][w][oc] << std::endl;
+                   }
+                   count++;
+               }
+           }
+       }
+   }
+   if (count != 0){
+       std::cout << "fire() does not match golden: " << count << "/" << (FIRE_OH * FIRE_OW * FIRE_OC) << " mismatches" << std::endl;
+   }
+   else {
+       std::cout << "fire() matches golden" << std::endl;
+   }
+   delete[] fire_out;
+   delete[] f_golden;
+
+    // // FIRE TEST END
+
+
+    // CONV10 TEST START
+
+    auto conv10_in = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_H][MAX_FIRE_IC];
+    auto conv10_w = new fixed_point_t[MAX_FIRE_IC][AVGPOOL_C];
+    auto conv10_out = new fixed_point_t[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C];
+    auto conv10_g = new fixed_point_t[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C];
+
+    const int conv10_H = 14;
+    const int conv10_W = 14;
+    const int conv10_IC = 512;
+
+    // randomize input
+    for (int h = 0; h < conv10_H; h++){
+        for (int w = 0; w < conv10_W; w++){
+            for (int ic = 0; ic < conv10_IC; ic++){
+                int steps = std::rand() % 256;  // 8-bit range 0 to 255
+                conv10_in[h][w][ic] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+            }
+        }
+    }
+
+    // randomize weights
+    for (int h = 0; h < MAX_CONV10_IC; h++){
+        for (int w = 0; w < AVGPOOL_C; w++){
+                int steps = std::rand() % 256;  // 8-bit range 0 to 255
+                conv10_w[h][w] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+        }
+    }
+    std::cout << "Calling conv10 kernel" << std::endl;
+    conv10(enable,conv10_in,conv10_w,conv10_out);
+    std::cout << "Calling conv10 golden" << std::endl;
+    conv10_golden(enable,conv10_in,conv10_w,conv10_g,conv10_H,conv10_W,conv10_IC,AVGPOOL_C);
+
+    count = 0;
+    for (int i = 0; i < AVGPOOL_H; i++){
+        for (int j = 0; j < AVGPOOL_W; j++){
+            for (int k = 0; k < AVGPOOL_C; k++){
+                if (conv10_out[i][j][k] != conv10_g[i][j][k]){
+                    if (count < 5){
+                        std::cout << "Mismatch at h, w, oc: " << i << " " << j << " " << k << ", kernel: " << conv10_out[i][j][k] << " golden: " << conv10_g[i][j][k] << std::endl;
+                    }
+                    count++;
+                }
+            }
+        }
+    }
+    if (count != 0){
+        std::cout << "conv10() does not match golden: " << count << "/" << (AVGPOOL_H * AVGPOOL_W * AVGPOOL_C) << " mismatches" << std::endl;
+    }
+    else {
+        std::cout << "conv10() matches golden" << std::endl;
+    }
+    delete[] conv10_in;
+    delete[] conv10_w;
+    delete[] conv10_out;
+    delete[] conv10_g;
+
+    // CONV10 TEST END
+    
+    // AVGPOOL TEST START
+    // test avgpool for final output
+
+    fixed_point_t ap_in[AVGPOOL_H][AVGPOOL_W][AVGPOOL_C];
+
+    fixed_point_t ap_out[AVGPOOL_C];
+    fixed_point_t ap_golden[AVGPOOL_C];
+
+    for (int h = 0; h < AVGPOOL_H; h++){
+        for (int w = 0; w < AVGPOOL_W; w++){
+            for (int c = 0; c < AVGPOOL_C; c++){
+                int steps = std::rand() % 256;  // 8-bit range 0 to 255
+                ap_in[h][w][c] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
+            }
+        }
+    }
+    std::cout << "Calling avgpool kernel" << std::endl;
+    avgpool(enable,ap_in,ap_out,AVGPOOL_H,AVGPOOL_W,AVGPOOL_C);
+    std::cout << "Calling avgpool golden" << std::endl;
+    avgpool_golden(enable,ap_in,ap_golden,AVGPOOL_H,AVGPOOL_W,AVGPOOL_C);
+
+    std::cout << "Comparing avgpool with golden" << std::endl;
+    count = 0;
+    for (int c = 0; c < AVGPOOL_C; c++){
+        if (ap_out[c] != ap_golden[c]){
+            if (count < 5){
+                std::cout << "Mismatch at c: " << c << ", kernel: " << ap_out[c] << " golden: " << ap_golden[c] << std::endl;
+            }
+            count++;
+        }
+    }
+    if (count != 0){
+        std::cout << "avgpool() does not match golden: " << count << "/" << AVGPOOL_C << " mismatches" << std::endl;
+    }
+    else {
+        std::cout << "avgpool() matches golden" << std::endl;
+    }
+    // AVGPOOL TEST END
+    
 }
-
-int main(){
-    // TEST PARAMETERS
-    int H = 32;
-    int W = 32;
-    int IC = 3;
-    int OC = 3;
-    int K = 3;
-    int S = 1;
-    int P = 0;
-    
-    // INPUT ARRAYS
-    static fixed_point_t input[MAX_H * MAX_W * MAX_IC];
-    static fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC];
-
-    // fill input with random values in [-32, 31.999] for ap_fixed<16,6>
-    for (int i = 0; i < H * W * IC; i++) {
-        // int steps = std::rand() % 65536;  // 0 to 65535 possible steps
-        // input[i] = -32.0f + 0.0009765625f * steps; // 2^-10
-        int steps = std::rand() % 256;  // 8-bit range Ã¢â€ ' 0 to 255
-        input[i] = -8.0f + 0.0625f * steps;  // 2^-4 = 0.0625
-    }
-
-    // fill weights with random values in [-32, 31.999] for ap_fixed<16,6>
-    for (int i = 0; i < K * K * IC * OC; i++) {
-        // int steps = std::rand() % 65536;
-        // weights[i] = -32.0f + 0.0009765625f * steps;
-        int steps = std::rand() % 256;
-        weights[i] = -8.0f + 0.0625f * steps;
-    }
-
-
-    // OUTPUT ARRAYS
-    static fixed_point_t conv_out[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t conv_golden[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t mpool_out[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t mpool_golden[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t apool_out[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t apool_golden[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t fire_out[MAX_H * MAX_W * MAX_OC];
-    static fixed_point_t fire_golden[MAX_H * MAX_W * MAX_OC];
-
-    // zero outputs
-    for (int i = 0; i < MAX_H * MAX_W * MAX_OC; i++){
-        conv_out[i] = 0;
-        conv_golden[i] = 0;
-        mpool_out[i] = 0;
-        mpool_golden[i] = 0;
-        apool_out[i] = 0;
-        apool_golden[i] = 0;
-        fire_out[i] = 0;
-        fire_golden[i] = 0;
-    }
-
-    // CONV TEST
-    conv3d_golden(input, weights, conv_golden, H, W, IC, OC, K, S, P); // compute golden
-    conv3d(true, input, weights, conv_out, H, W, IC, OC, K, S, P);
-    std::cout << "Comparing Conv results" << std::endl;
-    compare(conv_golden, conv_out, H, W, OC); // compare outputs
-
-    // MAXPOOL TEST
-    maxpool_golden(input, mpool_golden, H, W, IC, K, S);
-    maxpool(true, input, mpool_out, H, W, IC, K, S);
-    std::cout << "Comparing Max Pool results" << std::endl;
-    compare(mpool_golden, mpool_out, H, W, IC);
-
-    // AVGPOOL TEST
-    avgpool_golden(input, apool_golden, H, W, IC, K, S);
-    avgpool(true, input, apool_out, H, W, IC, K, S);
-    std::cout << "Comparing Avg Pool results" << std::endl;
-    compare(apool_golden, apool_out, H, W, IC);
-
-    // RELU TEST
-    static fixed_point_t input2[MAX_H * MAX_W * MAX_IC];
-    // copy input to second input, relu modifies input
-    for (int i = 0; i < H * W * IC; i++) {
-        input2[i] = input[i];
-    }
-
-    relu_golden(input,H,W,IC);
-    relu(true, input2,H,W,IC);
-    std::cout << "Comparing ReLU results" << std::endl;
-    compare(input, input2, H, W, IC);
-
-    // FIRE MODULE TEST
-    int squeeze_ch = 16;
-    int expand_ch = 64;
-    static fixed_point_t squeeze_weights[1 * 1 * MAX_IC * MAX_OC];
-    static fixed_point_t expand1x1_weights[1 * 1 * MAX_IC * MAX_OC];
-    static fixed_point_t expand3x3_weights[MAX_K * MAX_K * MAX_IC * MAX_OC];
-
-    // fill fire module weights with random values
-    for (int i = 0; i < 1 * 1 * IC * squeeze_ch; i++) {
-        int steps = std::rand() % 256;
-        squeeze_weights[i] = -8.0f + 0.0625f * steps;
-    }
-    for (int i = 0; i < 1 * 1 * squeeze_ch * expand_ch; i++) {
-        int steps = std::rand() % 256;
-        expand1x1_weights[i] = -8.0f + 0.0625f * steps;
-    }
-    for (int i = 0; i < 3 * 3 * squeeze_ch * expand_ch; i++) {
-        int steps = std::rand() % 256;
-        expand3x3_weights[i] = -8.0f + 0.0625f * steps;
-    }
-
-    fire_module_golden(input, squeeze_weights, expand1x1_weights, expand3x3_weights, 
-                       fire_golden, H, W, IC, squeeze_ch, expand_ch);
-    fire_module(true, input, squeeze_weights, expand1x1_weights, expand3x3_weights, 
-                fire_out, H, W, IC, squeeze_ch, expand_ch);
-    std::cout << "Comparing Fire Module results" << std::endl;
-    compare(fire_golden, fire_out, H, W, expand_ch * 2);
-
-    // FULL SQUEEZENET PIPELINE TEST
-    std::cout << "\n=== Testing Full SqueezeNet Pipeline ===" << std::endl;
-    
-    // allocate memory for full network weights (simplified - use small values for test)
-    // total weights needed: ~870K (see controller for breakdown)
-    static fixed_point_t all_weights[1000000]; // 1M weights for safety
-    
-    // fill with random small values for testing
-    for (int i = 0; i < 1000000; i++) {
-        int steps = std::rand() % 256;
-        all_weights[i] = -8.0f + 0.0625f * steps;
-    }
-    
-    // prepare input (32x32x3 CIFAR-10 image)
-    static fixed_point_t squeezenet_input[MAX_H * MAX_W * MAX_IC];
-    for (int i = 0; i < 32 * 32 * 3; i++) {
-        int steps = std::rand() % 256;
-        squeezenet_input[i] = -8.0f + 0.0625f * steps;
-    }
-    
-    // output array for 10 classes
-    static fixed_point_t squeezenet_output[10];
-    
-    // run full 16-stage SqueezeNet
-    std::cout << "Running SqueezeNet with 16 stages..." << std::endl;
-    squeezenet_top(squeezenet_input, squeezenet_output, all_weights, 16);
-    
-    std::cout << "\n=== Dimensional Flow Verification ===" << std::endl;
-    std::cout << "Stage 0: 32x32x3 -> 32x32x64 (conv1)" << std::endl;
-    std::cout << "Stage 1: 32x32x64 -> 32x32x64 (relu)" << std::endl;
-    std::cout << "Stage 2: 32x32x64 -> 16x16x64 (maxpool)" << std::endl;
-    std::cout << "Stage 3: 16x16x64 -> 16x16x128 (fire2)" << std::endl;
-    std::cout << "Stage 6: 16x16x256 -> 8x8x256 (maxpool)" << std::endl;
-    std::cout << "Stage 11: 8x8x512 -> 4x4x512 (maxpool)" << std::endl;
-    std::cout << "Stage 15: 4x4x10 -> 1x1x10 (global avgpool)" << std::endl;
-    std::cout << "Pipeline executes without errors - dimensions correct by design." << std::endl;
-    
-    // check output dimensions (should be 10 values for CIFAR-10 classes)
-    std::cout << "\nSqueezeNet output (10 classes):" << std::endl;
-    for (int i = 0; i < 10; i++) {
-        std::cout << "  Class " << i << ": " << squeezenet_output[i] << std::endl;
-    }
-    
-    std::cout << "\n=== Task 3 Verification Complete ===" << std::endl;
-    std::cout << "Architecture successfully executes 16-stage SqueezeNet pipeline." << std::endl;
-    std::cout << "Note: With random weights, output values are meaningless." << std::endl;
-    std::cout << "Real functional verification happens in Task 4 with trained weights." << std::endl;
-}
-
-

@@ -1,174 +1,167 @@
 #include "kernel.h"
+#include "config.h"
+
+#include <assert.h>
 
 void load_weights(
-    const fixed_point_t weights[MAX_K * MAX_K * MAX_IC * MAX_OC],
-    fixed_point_t local_weights[MAX_K * MAX_K * MAX_IC],
-    int IC, int K, int oc
+    fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV1_IC][MAX_CONV1_OC],
+    fixed_point_t local_weights[MAX_CONV_K][MAX_CONV_K],
+    int K, int IC_ind, int OC_ind
 ){
     LOAD_WEIGHTS:
     for (int kx = 0; kx < K; kx++) {
         for (int ky = 0; ky < K; ky++) {
-            for (int ic = 0; ic < IC; ic++) {
-
-                #pragma HLS PIPELINE II=1
-
-                int idx = kx * (MAX_K * MAX_IC * MAX_OC)
-                        + ky * (MAX_IC * MAX_OC)
-                        + ic * (MAX_OC)
-                        + oc;
-
-                int local_idx = kx * (MAX_K * MAX_IC)
-                              + ky * (MAX_IC)
-                              + ic;
-
-                local_weights[local_idx] = weights[idx];
-            }
+            #pragma HLS PIPELINE II=1
+            local_weights[kx][ky] = weights[kx][ky][IC_ind][OC_ind];
         }
     }
 }
 
 void load_activations(
-    const fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t local_activations[(MAX_H + 2*MAX_K)*(MAX_W + 2*MAX_K)],
-    int H, int W, int ic, int pad
+    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
+    fixed_point_t local_activations[MAX_CONV_H + 2*MAX_CONV_K][MAX_CONV_W + 2*MAX_CONV_K],
+    int H, int W, int IC_ind, int pad
 ){
     LOAD_ACTIVATION:
     for (int h = 0; h < H + 2*pad; h++) {
         for (int w = 0; w < W + 2*pad; w++) {
-
             #pragma HLS PIPELINE II=1
-
-            int local_idx = h * (MAX_W + 2*MAX_K) + w;
-
             if (h < pad || h >= H + pad || w < pad || w >= W + pad) {
-                local_activations[local_idx] = 0; // zero padding
+                local_activations[h][w] = 0; // zero padding
             } else {
-                int h_in = h - pad;
-                int w_in = w - pad;
-                int idx = h_in * (MAX_W * MAX_IC) + w_in * (MAX_IC) + ic;
-                local_activations[local_idx] = activations[idx];
+                local_activations[h][w] = activations[h - pad][w - pad][IC_ind];
+            }
+        }
+    }
+
+    // LOAD_ACTIVATION:
+    // for (int h = 0; h < MAX_CONV_H + 2*MAX_CONV_K; h++) {
+    //     for (int w = 0; w < MAX_CONV_W + 2*MAX_CONV_K; w++) {
+    //         #pragma HLS PIPELINE II=1
+    //         if (h < pad || h >= H + pad || w < pad || w >= W + pad) {
+    //             local_activations[h][w] = 0; // zero padding
+    //         } else {
+    //             local_activations[h][w] = activations[h - pad][w - pad][IC_ind];
+    //         }
+    //     }
+    // }
+}
+
+void load_activations2(
+    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
+    fixed_point_t local_activations[MAX_CONV_H + 2*MAX_CONV_K][MAX_CONV_W + 2*MAX_CONV_K],
+    int H, int W, int IC_ind, int pad
+){
+    LOAD_ACTIVATION:
+    for (int h = 0; h < H + 2*pad; h++) {
+        for (int w = 0; w < W + 2*pad; w++) {
+            #pragma HLS PIPELINE II=1
+            if (h < pad || h >= H + pad || w < pad || w >= W + pad) {
+                local_activations[h][w] = 0; // zero padding
+            } else {
+                local_activations[h][w] = activations[h - pad][w - pad][IC_ind];
             }
         }
     }
 }
 
-/*
-activations[H][W][IC], idx = h * (MAX_W * MAX_IC) + w * MAX_IC + c
-weights[K][K][IC][OC]
-output[HOUT][W_OUT[OC]]
-*/
 void conv3d(
     bool enable,
-    fixed_point_t activations[MAX_H * MAX_W * MAX_IC],
-    fixed_point_t weights[MAX_K * MAX_K * MAX_IC *MAX_OC],
-    fixed_point_t output[MAX_H * MAX_W * MAX_OC],
+    fixed_point_t activations[MAX_CONV_H][MAX_CONV_W][MAX_CONV1_IC],
+    fixed_point_t weights[MAX_CONV_K][MAX_CONV_K][MAX_CONV1_IC][MAX_CONV1_OC],
+    // fixed_point_t output[MAX_CONV_H][MAX_CONV_W][MAX_CONV_OC],
+    fixed_point_t output[MAX_FIRE_H][MAX_FIRE_W][MAX_FIRE_IC],
 
     int H,      // input height
     int W,      // input width
     int IC,     // input channels
     int OC,     // output channels
     int K,      // kernel size
-    int stride, // stride
-    int pad     // padding
+    int S,      // stride
+    int P       // padding
 )
 {
     if (!enable) return;
+    #pragma HLS INTERFACE mode=s_axilite port=H
+    #pragma HLS INTERFACE mode=s_axilite port=W
+    #pragma HLS INTERFACE mode=s_axilite port=IC
+    #pragma HLS INTERFACE mode=s_axilite port=OC
+    #pragma HLS INTERFACE mode=s_axilite port=K
+    #pragma HLS INTERFACE mode=s_axilite port=S
+    #pragma HLS INTERFACE mode=s_axilite port=P
+    #pragma HLS INTERFACE mode=s_axilite port=return
 
-    #pragma HLS INLINE off
+    fixed_point_t local_weights[MAX_CONV_K][MAX_CONV_K];
+    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=1
+    #pragma HLS ARRAY_PARTITION variable=local_weights complete dim=2
 
-    #pragma HLS INTERFACE s_axilite port=enable
-    #pragma HLS INTERFACE s_axilite port=H
-    #pragma HLS INTERFACE s_axilite port=W
-    #pragma HLS INTERFACE s_axilite port=IC
-    #pragma HLS INTERFACE s_axilite port=OC
-    #pragma HLS INTERFACE s_axilite port=K
-    #pragma HLS INTERFACE s_axilite port=stride
-    #pragma HLS INTERFACE s_axilite port=pad
-    #pragma HLS INTERFACE s_axilite port=return
+    fixed_point_t local_activations[MAX_CONV_H + 2*MAX_CONV_K][MAX_CONV_W + 2*MAX_CONV_K];
+    #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=7 dim=2
+    #pragma HLS bind_storage variable=local_activations type=ram_2p impl=bram
 
-    #pragma HLS INTERFACE m_axi port=activations offset=slave depth=262144
-    #pragma HLS INTERFACE m_axi port=weights     offset=slave depth=589824
-    #pragma HLS INTERFACE m_axi port=output      offset=slave depth=262144
+    // fixed_point_t local_output[MAX_CONV_H][MAX_CONV_W];
+    accum_t local_output[MAX_FIRE_H][MAX_FIRE_W];
 
-    // Local buffers with array partitioning for parallelism
-    fixed_point_t local_weights[MAX_K * MAX_K * MAX_IC];
-    #pragma HLS ARRAY_PARTITION variable=local_weights cyclic factor=8 dim=1
-    
-    fixed_point_t local_activations[(MAX_H + 2*MAX_K)*(MAX_W + 2*MAX_K)];
-    #pragma HLS ARRAY_PARTITION variable=local_activations cyclic factor=8 dim=1
-    
-    fixed_point_t local_output[MAX_H * MAX_W];
-    #pragma HLS ARRAY_PARTITION variable=local_output cyclic factor=8 dim=1
+    // auto local_weights = new fixed_point_t[MAX_CONV_K][MAX_CONV_K];
+    // auto local_activations = new fixed_point_t[MAX_CONV_H + 2*MAX_CONV_K][MAX_CONV_W + 2*MAX_CONV_K];
+    // auto local_output = new fixed_point_t[MAX_FIRE_H][MAX_FIRE_W];
 
-    int H_OUT = (H + 2*pad - K)/stride + 1;
-    int W_OUT = (W + 2*pad - K)/stride + 1;
+    int H_OUT = (H + 2*P - K)/S + 1;
+    int W_OUT = (W + 2*P - K)/S + 1;
 
-    OC_LOOP:
     for (int oc=0;oc<OC;oc++){
-        #pragma HLS LOOP_TRIPCOUNT min=10 max=512
-        
-        load_weights(weights,local_weights,IC,K,oc);
 
-        INIT_ZERO_LOOP:
+        INIT_LOCAL_OUTPUT:
         for (int h = 0; h < H_OUT; h++) {
-            #pragma HLS LOOP_TRIPCOUNT min=1 max=32
             for (int w = 0; w < W_OUT; w++) {
-                #pragma HLS LOOP_TRIPCOUNT min=1 max=32
                 #pragma HLS PIPELINE II=1
-                int out_idx = h * MAX_W + w;
-                local_output[out_idx] = 0;
+                local_output[h][w] = 0;
             }
         }
 
         IC_LOOP:
         for (int ic=0;ic<IC;ic++){
-            #pragma HLS LOOP_TRIPCOUNT min=3 max=512
-            
-            load_activations(activations,local_activations,H,W,ic,pad);
-            
+            load_weights(weights,local_weights,K,ic,oc);
+            load_activations(activations,local_activations,H,W,ic,P);
+
             H_OUT_LOOP:
-            for (int h=0;h<H_OUT;h++){
-                #pragma HLS LOOP_TRIPCOUNT min=1 max=32
-                
+            for (int h = 0; h < H_OUT; h++) {
                 W_OUT_LOOP:
-                for (int w=0;w<W_OUT;w++){
-                    #pragma HLS LOOP_TRIPCOUNT min=1 max=32
-                    
+                for (int w = 0; w < W_OUT; w++) {
+                    #pragma HLS PIPELINE II=1
+
                     accum_t sum = 0;
 
                     KH_LOOP:
                     for (int kh = 0; kh < K; kh++) {
-                        #pragma HLS UNROLL
+                        #pragma HLS UNROLL factor=7
+                        #pragma HLS LOOP_TRIPCOUNT min=1 max=7
                         KW_LOOP:
                         for (int kw = 0; kw < K; kw++) {
-                            #pragma HLS UNROLL
-                            #pragma HLS PIPELINE II=1
-                            
-                            int h_in = h * stride + kh;
-                            int w_in = w * stride + kw;
+                            #pragma HLS UNROLL factor=7
+                            #pragma HLS LOOP_TRIPCOUNT min=1 max=7
+                            int h_in = h * S + kh;
+                            int w_in = w * S + kw;
 
-                            int local_idx = h_in * (MAX_W + 2*MAX_K) + w_in;
-                            int w_idx = kh * (MAX_K * MAX_IC) + kw * (MAX_IC) + ic;
-
-                            sum += local_activations[local_idx] * local_weights[w_idx];
+                            sum += local_activations[h_in][w_in] *
+                                   local_weights[kh][kw];
                         }
                     }
-                    int out_idx = h * (MAX_W) + w;
-                    local_output[out_idx] += (fixed_point_t)sum;
+
+                    local_output[h][w] += sum;
                 }
             }
         }
 
         WB_LOOP:
         for (int h = 0; h < H_OUT; h++) {
-            #pragma HLS LOOP_TRIPCOUNT min=1 max=32
             for (int w = 0; w < W_OUT; w++) {
-                #pragma HLS LOOP_TRIPCOUNT min=1 max=32
                 #pragma HLS PIPELINE II=1
-                int out_idx = h * (MAX_W * MAX_OC) + w * (MAX_OC) + oc;
-                int local_idx = h * MAX_W + w;
-                output[out_idx] = local_output[local_idx];
+                output[h][w][oc] = (fixed_point_t)local_output[h][w];
             }
         }
     }
+    // delete[] local_weights;
+    // delete[] local_activations;
+    // delete[] local_output;
 }
