@@ -2,4 +2,5 @@
 __pycache__/
 dev/
 data/
-.DS_STORE
+.DS_STORE\
+dev3/
