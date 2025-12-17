@@ -474,6 +474,21 @@ void squeezenet(
     fixed_point_t input_image[MAX_CONV_H * MAX_CONV_W *MAX_CONV1_IC],
     fixed_point_t final_output[AVGPOOL_C]
 ) {
+    // ========================================================================
+    // HLS Interface Pragmas
+    // ========================================================================
+    
+    // AXI4-Master interface for input image (DDR memory access)
+    #pragma HLS INTERFACE m_axi port=input_image offset=slave bundle=gmem0 depth=150528
+    
+    // AXI4-Master interface for output (DDR memory access)
+    #pragma HLS INTERFACE m_axi port=final_output offset=slave bundle=gmem1 depth=10
+    
+    // AXI4-Lite slave interface for control signals
+    #pragma HLS INTERFACE s_axilite port=input_image bundle=control
+    #pragma HLS INTERFACE s_axilite port=final_output bundle=control
+    #pragma HLS INTERFACE s_axilite port=return bundle=control
+    
     // Initialize weights on first call
     initialize_weights();
     
