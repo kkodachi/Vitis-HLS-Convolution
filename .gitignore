@@ -2,3 +2,4 @@
 __pycache__/
 dev/
 data/
+.DS_STORE

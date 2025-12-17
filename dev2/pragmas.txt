@@ -1,0 +1,19 @@
+#pragma HLS INTERFACE s_axilite port=return bundle=control
+
+#pragma HLS INTERFACE m_axi port=input  offset=slave bundle=gmem0 depth=INPUT_SIZE
+#pragma HLS INTERFACE s_axilite port=input bundle=control
+
+#pragma HLS INTERFACE m_axi port=output offset=slave bundle=gmem1 depth=NUM_CLASSES
+#pragma HLS INTERFACE s_axilite port=output bundle=control
+
+#pragma HLS INTERFACE m_axi port=conv1w offset=slave bundle=gmem2 depth=CONV1_W_SIZE
+#pragma HLS INTERFACE m_axi port=conv2w offset=slave bundle=gmem3 depth=CONV2_W_SIZE
+#pragma HLS INTERFACE m_axi port=conv3w offset=slave bundle=gmem4 depth=CONV3_W_SIZE
+#pragma HLS INTERFACE m_axi port=conv4w offset=slave bundle=gmem5 depth=CONV4_W_SIZE
+#pragma HLS INTERFACE m_axi port=conv5w offset=slave bundle=gmem6 depth=CONV5_W_SIZE
+
+#pragma HLS INTERFACE s_axilite port=conv1w bundle=control
+#pragma HLS INTERFACE s_axilite port=conv2w bundle=control
+#pragma HLS INTERFACE s_axilite port=conv3w bundle=control
+#pragma HLS INTERFACE s_axilite port=conv4w bundle=control
+#pragma HLS INTERFACE s_axilite port=conv5w bundle=control
