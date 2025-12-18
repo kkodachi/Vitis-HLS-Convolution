@@ -1,6 +1,6 @@
 # Vivado Issues
 
-We attempted to synthesize overnight multiple times at on my home computer an in the lab. However synthesis crashed my home desktop and someone interfered with synthesis in the lab.
+We attempted to synthesize overnight multiple times at on my home computer an in the lab. However synthesis crashed my home desktop and someone interfered with synthesis overnight in the lab. More details in the report.
 
 As a result we were forced to prune a few layers so that synthesis could be done on my home computer. squeezenetsynthesis1.png and squeezenetsynthesis2.png show that we were successfully able to synthesize after reducing the model size slightly. 
 
